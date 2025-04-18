@@ -7,8 +7,8 @@ function calculateTimeCost(sharedAreaType, totalHours) {
 
   switch (sharedAreaType) {
     case "VIP":
-      hourlyRate = 20; // 30 EGP/hour
-      dailyRate = 100; // 150 EGP/day
+      hourlyRate = 30; // 30 EGP/hour
+      dailyRate = 150; // 150 EGP/day
       break;
     case "Quiet Area":
     case "General Area":
@@ -45,7 +45,7 @@ router.get("/shared-area-checkins/:type?", async (req, res) => {
       query += ` WHERE shared_area_checkins.type = ?`;
       params.push(type);
     }
-    query += ` ORDER BY shared_area_checkins.check_in_time DESC`;
+
     console.log("Executing query:", query); // Debugging log
     console.log("Query parameters:", params); // Debugging log
 
@@ -69,8 +69,6 @@ router.get("/", async (req, res) => {
           customers.name AS name 
         FROM shared_area_checkins 
         LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id
-        ORDER BY shared_area_checkins.check_in_time DESC
-        
       `);
     console.log("All check-ins fetched successfully:", checkIns); // Debugging log
     res.json(checkIns);
@@ -195,7 +193,6 @@ router.post("/check-in", async (req, res) => {
 router.put("/check-out/:id", async (req, res) => {
   const { id } = req.params;
   const { kitchen_items } = req.body;
-  console.log("Received shared area check-out request for ID:", id);
 
   try {
     // 1. Get the check-in details
@@ -204,36 +201,24 @@ router.put("/check-out/:id", async (req, res) => {
       [id]
     );
     if (checkIn.length === 0) {
-      console.log("Check-in not found for ID:", id);
       return res.status(404).json({ message: "Check-in not found" });
     }
 
-    // 2. Calculate total time (actual) and cost
+    // 2. Calculate total time and cost
     const checkInTime = new Date(checkIn[0].check_in_time);
     const checkOutTime = new Date();
-    const totalTimeMinutes = Math.round(
-      (checkOutTime - checkInTime) / (1000 * 60)
-    ); // Actual minutes stayed
-    const totalHours = totalTimeMinutes / 60;
+    const totalTime = Math.round((checkOutTime - checkInTime) / (1000 * 60)); // in minutes
+    const totalHours = totalTime / 60;
 
     const sharedAreaType = checkIn[0].type;
-
-    // Apply minimum 1-hour charge AND daily rate if >5 hours
-    const billedHours = Math.max(totalHours, 1); // Minimum 1 hour
-    const timeCost = calculateTimeCost(sharedAreaType, billedHours);
+    const timeCost = calculateTimeCost(sharedAreaType, totalHours);
     const itemsCost = await calculateKitchenItemsCost(kitchen_items);
     const totalCost = timeCost + itemsCost;
 
-    console.log("Actual time stayed (minutes):", totalTimeMinutes);
-    console.log("Billed hours:", billedHours);
-    console.log("Time cost:", timeCost);
-    console.log("Kitchen items cost:", itemsCost);
-    console.log("Total cost:", totalCost);
-
-    // 3. Update the shared_area_checkins table (store actual time)
+    // 3. Update the shared_area_checkins table
     await db.query(
       "UPDATE shared_area_checkins SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
-      [totalTimeMinutes, totalCost, id] // Store actual minutes, but cost uses min 1 hour + daily rate logic
+      [totalTime, totalCost, id]
     );
 
     // 4. Remove from active_shared_area_customers table
@@ -242,7 +227,7 @@ router.put("/check-out/:id", async (req, res) => {
       [checkIn[0].customer_id]
     );
 
-    // 5. Return updated check-in details (shows actual time)
+    // 5. Return updated check-in details
     const [updatedCheckIn] = await db.query(
       `SELECT shared_area_checkins.*, customers.name AS name 
        FROM shared_area_checkins 
@@ -251,11 +236,9 @@ router.put("/check-out/:id", async (req, res) => {
       [id]
     );
 
-    console.log("Check-out successful for ID:", id);
     res.json(updatedCheckIn[0]);
   } catch (err) {
     console.error("Error during check-out:", err.message);
-    console.error("Error stack trace:", err.stack);
     res.status(500).json({ message: err.message });
   }
 });

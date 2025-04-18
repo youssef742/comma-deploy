@@ -51,7 +51,7 @@
           </td>
         </tr>
         <tr v-for="booking in paginatedBookings" :key="booking.id">
-          <td>{{ booking.customer_id }}</td>
+          <td>{{ booking.id }}</td>
           <td>
             {{ formatDateTime(booking.check_in_time) || "Not Checked In" }}
           </td>
@@ -65,20 +65,12 @@
             {{ booking.total_time ? `${booking.total_time} minutes` : "N/A" }}
           </td>
           <td>{{ booking.room || "N/A" }}</td>
-          <td>
-            {{
-              booking.status === "checked_out"
-                ? "Checked Out"
-                : booking.status === "cancelled"
-                ? "Cancelled"
-                : "Active"
-            }}
-          </td>
+          <td>{{ booking.check_out_time ? "Checked Out" : "Active" }}</td>
           <td>
             <button
               class="btn-delete"
               @click="confirmDeleteBooking(booking)"
-              v-if="!booking.check_out_time && booking.status !== 'cancelled'"
+              v-if="!booking.check_out_time"
             >
               Cancel Booking
             </button>
@@ -281,7 +273,7 @@ export default {
   methods: {
     async loadRooms() {
       try {
-        const response = await axios.get("http://localhost:3000/api/rooms");
+        const response = await axios.get("/api/rooms");
         this.rooms = response.data;
       } catch (error) {
         console.error("Error loading rooms:", error);
@@ -290,9 +282,7 @@ export default {
     },
     async loadKitchenItems() {
       try {
-        const response = await axios.get(
-          "http://localhost:3000/api/kitchen-items"
-        );
+        const response = await axios.get("/api/kitchen-items");
         this.kitchenItems = response.data;
       } catch (error) {
         console.error("Error loading kitchen items:", error);
@@ -301,9 +291,7 @@ export default {
     },
     async loadBookings() {
       try {
-        const response = await axios.get(
-          "http://localhost:3000/api/bookings?sort=-createdAt"
-        );
+        const response = await axios.get("/api/bookings");
         this.bookings = response.data;
       } catch (error) {
         console.error("Error loading bookings:", error);
@@ -318,7 +306,7 @@ export default {
 
       try {
         const response = await axios.get(
-          `http://localhost:3000/api/customers/${this.checkInData.customerId}`
+          `/api/customers/${this.checkInData.customerId}`
         );
         if (response.data) {
           this.customerError = "";
@@ -343,10 +331,7 @@ export default {
           customer_id: this.checkInData.customerId,
           room: this.checkInData.room,
         };
-        const response = await axios.post(
-          "http://localhost:3000/api/bookings/check-in",
-          payload
-        );
+        const response = await axios.post("/api/bookings/check-in", payload);
         this.bookings.push(response.data);
         this.showCheckInForm = false;
         this.resetCheckInData();
@@ -361,15 +346,12 @@ export default {
     },
     async handleCheckOut() {
       try {
-        // Find the ACTIVE booking for this customer (status 'active' and no check_out_time)
-        const activeBooking = this.bookings.find(
-          (b) =>
-            b.customer_id === this.checkOutData.customerId &&
-            b.status === "active"
+        const booking = this.bookings.find(
+          (b) => b.customer_id === this.checkOutData.customerId
         );
 
-        if (!activeBooking) {
-          toastr.error("No active booking found for this customer");
+        if (!booking) {
+          toastr.error("Booking not found");
           return;
         }
 
@@ -384,22 +366,18 @@ export default {
           kitchen_items: kitchenItemsWithQuantities,
         };
 
-        // Use the active booking's ID for check-out
         const response = await axios.put(
-          `http://localhost:3000/api/bookings/check-out/${activeBooking.id}`,
+          `/api/bookings/check-out/${booking.id}`,
           payload
         );
 
-        // Update the local booking data
-        activeBooking.check_out_time = response.data.check_out_time;
-        activeBooking.total_time = response.data.total_time;
-        activeBooking.total_cost = response.data.total_cost;
-        activeBooking.status = "checked_out";
+        booking.check_out_time = response.data.check_out_time;
+        booking.total_time = response.data.total_time;
+        booking.total_cost = response.data.total_cost;
 
         this.showCheckOutForm = false;
         this.resetCheckOutData();
-        this.loadBookings(); // Refresh to ensure all data is current
-
+        this.loadBookings();
         Swal.fire({
           title: "Check-Out Successful!",
           html: `
@@ -410,13 +388,10 @@ export default {
           icon: "success",
           confirmButtonText: "OK",
         });
+        // toastr.success("Customer checked out successfully!");
       } catch (error) {
         console.error("Error checking out:", error);
-        if (error.response && error.response.status === 404) {
-          toastr.error("No active booking found or already checked out");
-        } else {
-          toastr.error("Failed to check out. Please try again.");
-        }
+        toastr.error("Failed to check out. Please try again.");
       }
     },
     resetCheckInData() {
@@ -446,22 +421,23 @@ export default {
       }
 
       try {
-        const response = await axios.delete(
-          `http://localhost:3000/api/bookings/${this.bookingToDelete.id}`,
-          {
-            data: { reason: this.cancellationReason },
-          }
-        );
+        await axios.delete(`/api/bookings/${this.bookingToDelete.id}`, {
+          data: { reason: this.cancellationReason },
+        });
 
-        // Update the specific booking with all returned data
         this.bookings = this.bookings.map((b) =>
-          b.id === this.bookingToDelete.id ? response.data : b
+          b.id === this.bookingToDelete.id
+            ? {
+                ...b,
+                status: "cancelled",
+                cancellation_reason: this.cancellationReason,
+              }
+            : b
         );
 
         this.showDeleteConfirmation = false;
         this.cancellationReason = "";
-        this.bookingToDelete = null;
-
+        this.loadBookings();
         toastr.success("Booking cancelled successfully!");
       } catch (error) {
         console.error("Error cancelling booking:", error);
