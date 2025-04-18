@@ -334,9 +334,7 @@ export default {
     // Fetch all kitchen items from the API
     async fetchKitchenItems() {
       try {
-        const response = await axios.get(
-          "http://localhost:3000/api/kitchen-items"
-        );
+        const response = await axios.get("/api/kitchen-items");
         this.kitchenItems = response.data;
       } catch (error) {
         console.error("Error fetching kitchen items:", error);
@@ -353,10 +351,7 @@ export default {
           availability: this.newItem.availability,
         };
 
-        const response = await axios.post(
-          "http://localhost:3000/api/kitchen-items",
-          payload
-        );
+        const response = await axios.post("/api/kitchen-items", payload);
         this.kitchenItems.push(response.data);
         this.showAddItemForm = false;
         this.resetNewItem();
@@ -393,7 +388,7 @@ export default {
         };
 
         const response = await axios.put(
-          `http://localhost:3000/api/kitchen-items/${this.editItemData.id}`,
+          `/api/kitchen-items/${this.editItemData.id}`,
           payload
         );
 
@@ -419,9 +414,7 @@ export default {
     // Delete kitchen item after confirmation
     async deleteItemConfirmed() {
       try {
-        await axios.delete(
-          `http://localhost:3000/api/kitchen-items/${this.itemToDelete.id}`
-        );
+        await axios.delete(`/api/kitchen-items/${this.itemToDelete.id}`);
 
         this.kitchenItems = this.kitchenItems.filter(
           (i) => i.id !== this.itemToDelete.id
@@ -449,7 +442,7 @@ export default {
 
       try {
         const response = await axios.post(
-          "http://localhost:3000/api/kitchen-items/upload",
+          "/api/kitchen-items/upload",
           formData,
           {
             headers: {
