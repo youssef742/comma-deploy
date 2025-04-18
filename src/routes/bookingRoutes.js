@@ -6,18 +6,18 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const [bookings] = await db.query(`
-      SELECT bookings.*, customers.name AS name 
+      SELECT bookings.*, customers.name AS customer_name 
       FROM bookings 
       LEFT JOIN customers ON bookings.customer_id = customers.id
+      ORDER BY bookings.check_in_time DESC
     `);
     res.json(bookings);
   } catch (err) {
-    console.error("Error fetching bookings:", err.message); // Log error message
-    console.error("Error stack trace:", err.stack); // Log stack trace for debugging
+    console.error("Error fetching bookings:", err.message);
+    console.error("Error stack trace:", err.stack);
     res.status(500).json({ message: err.message });
   }
 });
-
 // Fetch a single booking by ID with customer name
 router.get("/:id", async (req, res) => {
   try {
@@ -44,10 +44,11 @@ router.get("/:id", async (req, res) => {
 });
 
 // Check-in a customer
+// Check-in a customer
 router.post("/check-in", async (req, res) => {
   const { customer_id, room } = req.body;
-  console.log("Received check-in request for customer ID:", customer_id); // Debugging log
-  console.log("Room:", room); // Debugging log
+  console.log("Received check-in request for customer ID:", customer_id);
+  console.log("Room:", room);
 
   try {
     // 1. Check if the customer exists
@@ -55,31 +56,46 @@ router.post("/check-in", async (req, res) => {
       customer_id,
     ]);
     if (customer.length === 0) {
-      console.log("Customer not found for ID:", customer_id); // Debugging log
+      console.log("Customer not found for ID:", customer_id);
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    // 2. Check if the room exists
+    // 2. Check if the customer is already checked in
+    const [activeBooking] = await db.query(
+      "SELECT * FROM bookings WHERE customer_id = ? AND status = 'active' AND check_out_time IS NULL",
+      [customer_id]
+    );
+
+    if (activeBooking.length > 0) {
+      console.log("Customer already checked in:", customer_id);
+      return res.status(400).json({
+        message: "Customer is already checked in",
+        bookingId: activeBooking[0].id,
+        room: activeBooking[0].room,
+      });
+    }
+
+    // 3. Check if the room exists
     const [roomData] = await db.query("SELECT * FROM rooms WHERE name = ?", [
       room,
     ]);
     if (roomData.length === 0) {
-      console.log("Room not found:", room); // Debugging log
+      console.log("Room not found:", room);
       return res.status(404).json({ message: "Room not found" });
     }
 
-    // 3. Start Transaction
+    // 4. Start Transaction
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-      // 4. Insert into bookings
+      // 5. Insert into bookings
       const [result] = await connection.query(
         "INSERT INTO bookings (customer_id, room, check_in_time, status, customer_name) VALUES (?, ?, NOW(), 'active', ?)",
         [customer_id, room, customer[0].name]
       );
 
-      // 5. Insert into active_customers
+      // 6. Insert into active_customers
       const [activeCustomerInsert] = await connection.query(
         "INSERT INTO active_customers (customer_id, name, phone, check_in_time, room) VALUES (?, ?, ?, NOW(), ?)",
         [customer_id, customer[0].name, customer[0].phone, room]
@@ -89,30 +105,30 @@ router.post("/check-in", async (req, res) => {
         throw new Error("Failed to insert into active_customers");
       }
 
-      // 6. Commit Transaction
+      // 7. Commit Transaction
       await connection.commit();
       connection.release();
 
-      // 7. Fetch and return the updated active customers list
+      // 8. Fetch and return the updated active customers list
       const [activeCustomers] = await db.query(
         "SELECT * FROM active_customers"
       );
-      console.log("Check-in successful for customer ID:", customer_id); // Debugging log
+      console.log("Check-in successful for customer ID:", customer_id);
       res.status(201).json({
         message: "Check-in successful",
         bookingId: result.insertId,
-        activeCustomers, // Return updated active customers list
+        activeCustomers,
       });
     } catch (err) {
       await connection.rollback();
       connection.release();
-      console.error("Error during check-in transaction:", err.message); // Log error message
-      console.error("Error stack trace:", err.stack); // Log stack trace for debugging
+      console.error("Error during check-in transaction:", err.message);
+      console.error("Error stack trace:", err.stack);
       throw err;
     }
   } catch (err) {
-    console.error("Error during check-in:", err.message); // Log error message
-    console.error("Error stack trace:", err.stack); // Log stack trace for debugging
+    console.error("Error during check-in:", err.message);
+    console.error("Error stack trace:", err.stack);
     res.status(500).json({ message: err.message });
   }
 });
@@ -121,67 +137,67 @@ router.post("/check-in", async (req, res) => {
 router.put("/check-out/:id", async (req, res) => {
   const { id } = req.params;
   const { kitchen_items } = req.body;
-  console.log("Received check-out request for booking ID:", id); // Debugging log
-  console.log("Kitchen items:", kitchen_items); // Debugging log
+  console.log("Received shared area check-out request for ID:", id);
 
   try {
-    // 1. Get the booking details
-    const [booking] = await db.query("SELECT * FROM bookings WHERE id = ?", [
-      id,
-    ]);
-    if (booking.length === 0) {
-      console.log("Booking not found for ID:", id); // Debugging log
-      return res.status(404).json({ message: "Booking not found" });
+    // 1. Get the check-in details
+    const [checkIn] = await db.query(
+      "SELECT * FROM shared_area_checkins WHERE id = ?",
+      [id]
+    );
+    if (checkIn.length === 0) {
+      console.log("Check-in not found for ID:", id);
+      return res.status(404).json({ message: "Check-in not found" });
     }
 
-    // 2. Get room details
-    const [room] = await db.query("SELECT * FROM rooms WHERE name = ?", [
-      booking[0].room,
-    ]);
-    if (room.length === 0) {
-      console.log("Room not found:", booking[0].room); // Debugging log
-      return res.status(404).json({ message: "Room not found" });
-    }
-
-    // 3. Calculate total time and cost
-    const checkInTime = new Date(booking[0].check_in_time);
+    // 2. Calculate total time (actual) and cost
+    const checkInTime = new Date(checkIn[0].check_in_time);
     const checkOutTime = new Date();
-    const totalTime = Math.round((checkOutTime - checkInTime) / (1000 * 60)); // in minutes
-    const roomPrice = room[0].price;
-    const timeCost = totalTime * (roomPrice / 60);
+    const totalTimeMinutes = Math.round(
+      (checkOutTime - checkInTime) / (1000 * 60)
+    ); // Actual minutes stayed
+    const totalHours = totalTimeMinutes / 60;
+
+    const sharedAreaType = checkIn[0].type;
+
+    // Apply minimum 1-hour charge AND daily rate if >5 hours
+    const billedHours = Math.max(totalHours, 1); // Minimum 1 hour
+    const timeCost = calculateTimeCost(sharedAreaType, billedHours);
     const itemsCost = await calculateKitchenItemsCost(kitchen_items);
     const totalCost = timeCost + itemsCost;
 
-    console.log("Total time (minutes):", totalTime); // Debugging log
-    console.log("Time cost:", timeCost); // Debugging log
-    console.log("Kitchen items cost:", itemsCost); // Debugging log
-    console.log("Total cost:", totalCost); // Debugging log
+    console.log("Actual time stayed (minutes):", totalTimeMinutes);
+    console.log("Billed hours:", billedHours);
+    console.log("Time cost:", timeCost);
+    console.log("Kitchen items cost:", itemsCost);
+    console.log("Total cost:", totalCost);
 
-    // 4. Update the bookings table
+    // 3. Update the shared_area_checkins table (store actual time)
     await db.query(
-      "UPDATE bookings SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
-      [totalTime, totalCost, id]
+      "UPDATE shared_area_checkins SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
+      [totalTimeMinutes, totalCost, id] // Store actual minutes, but cost uses min 1 hour + daily rate logic
     );
 
-    // 5. Remove from active_customers table
-    await db.query("DELETE FROM active_customers WHERE customer_id = ?", [
-      booking[0].customer_id,
-    ]);
+    // 4. Remove from active_shared_area_customers table
+    await db.query(
+      "DELETE FROM active_shared_area_customers WHERE customer_id = ?",
+      [checkIn[0].customer_id]
+    );
 
-    // 6. Return updated booking details
-    const [updatedBooking] = await db.query(
-      `SELECT bookings.*, customers.name AS name 
-       FROM bookings 
-       LEFT JOIN customers ON bookings.customer_id = customers.id 
-       WHERE bookings.id = ?`,
+    // 5. Return updated check-in details (shows actual time)
+    const [updatedCheckIn] = await db.query(
+      `SELECT shared_area_checkins.*, customers.name AS name 
+       FROM shared_area_checkins 
+       LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id 
+       WHERE shared_area_checkins.id = ?`,
       [id]
     );
 
-    console.log("Check-out successful for booking ID:", id); // Debugging log
-    res.json(updatedBooking[0]);
+    console.log("Check-out successful for ID:", id);
+    res.json(updatedCheckIn[0]);
   } catch (err) {
-    console.error("Error during check-out:", err.message); // Log error message
-    console.error("Error stack trace:", err.stack); // Log stack trace for debugging
+    console.error("Error during check-out:", err.message);
+    console.error("Error stack trace:", err.stack);
     res.status(500).json({ message: err.message });
   }
 });

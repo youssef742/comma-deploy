@@ -254,7 +254,7 @@ export default {
     // Fetch rooms from the backend
     async fetchRooms() {
       try {
-        const response = await fetch("/api/rooms");
+        const response = await fetch("http://localhost:3000/api/rooms");
         this.rooms = await response.json();
       } catch (error) {
         console.error("Error fetching rooms:", error);
@@ -264,7 +264,7 @@ export default {
     // Add a new room
     async addRoom() {
       try {
-        const response = await fetch("/api/rooms", {
+        const response = await fetch("http://localhost:3000/api/rooms", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(this.newRoom), // Send newRoom directly
@@ -311,11 +311,14 @@ export default {
     // Save edited room
     async saveEditedRoom() {
       try {
-        const response = await fetch(`/api/rooms/${this.roomToEdit.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(this.editRoomData), // Send editRoomData directly
-        });
+        const response = await fetch(
+          `http://localhost:3000/api/rooms/${this.roomToEdit.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(this.editRoomData), // Send editRoomData directly
+          }
+        );
 
         if (!response.ok) {
           throw new Error("Failed to update room");
@@ -346,7 +349,7 @@ export default {
     // Delete a room after confirmation
     async deleteRoomConfirmed() {
       try {
-        await fetch(`/api/rooms/${this.roomToDelete.id}`, {
+        await fetch(`http://localhost:3000/api/rooms/${this.roomToDelete.id}`, {
           method: "DELETE",
         });
         this.rooms = this.rooms.filter((r) => r.id !== this.roomToDelete.id);

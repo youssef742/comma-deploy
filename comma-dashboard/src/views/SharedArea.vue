@@ -31,7 +31,7 @@
     <table class="custom-table">
       <thead>
         <tr>
-          <th>Check-In ID</th>
+          <th>Customer ID</th>
           <th>Customer Name</th>
           <th>Check-In Time</th>
           <th>Check-Out Time</th>
@@ -48,7 +48,7 @@
           </td>
         </tr>
         <tr v-for="checkIn in paginatedCheckIns" :key="checkIn.id">
-          <td>{{ checkIn.id }}</td>
+          <td>{{ checkIn.customer_id }}</td>
           <td>{{ checkIn.customer_name }}</td>
           <td>
             {{ formatDateTime(checkIn.check_in_time) || "Not Checked In" }}
@@ -355,7 +355,9 @@ export default {
     async handleCheckOut() {
       try {
         const checkIn = this.checkIns.find(
-          (c) => c.customer_id === this.checkOutData.customerId
+          (c) =>
+            c.customer_id === this.checkOutData.customerId &&
+            c.status === "active"
         );
 
         if (!checkIn) {
