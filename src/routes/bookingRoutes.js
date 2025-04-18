@@ -137,71 +137,91 @@ router.post("/check-in", async (req, res) => {
 router.put("/check-out/:id", async (req, res) => {
   const { id } = req.params;
   const { kitchen_items } = req.body;
-  console.log("Received shared area check-out request for ID:", id);
+  console.log("Received check-out request for booking ID:", id);
 
   try {
-    // 1. Get the check-in details
-    const [checkIn] = await db.query(
-      "SELECT * FROM shared_area_checkins WHERE id = ?",
+    // 1. Get the booking details including room information
+    const [booking] = await db.query(
+      `SELECT b.*, r.price, r.price_type, r.type AS room_type
+       FROM bookings b
+       JOIN rooms r ON b.room = r.name
+       WHERE b.id = ? AND b.status = 'active'`,
       [id]
     );
-    if (checkIn.length === 0) {
-      console.log("Check-in not found for ID:", id);
-      return res.status(404).json({ message: "Check-in not found" });
+
+    if (booking.length === 0) {
+      console.log("Active booking not found for ID:", id);
+      return res.status(404).json({
+        message: "No active booking found or already checked out",
+      });
     }
 
-    // 2. Calculate total time (actual) and cost
-    const checkInTime = new Date(checkIn[0].check_in_time);
+    // 2. Calculate time duration
+    const checkInTime = new Date(booking[0].check_in_time);
     const checkOutTime = new Date();
     const totalTimeMinutes = Math.round(
       (checkOutTime - checkInTime) / (1000 * 60)
-    ); // Actual minutes stayed
+    );
     const totalHours = totalTimeMinutes / 60;
+    const totalDays = totalHours / 24;
 
-    const sharedAreaType = checkIn[0].type;
+    // 3. Calculate room cost based on pricing type (hour/day)
+    let roomCost = 0;
+    const roomPrice = parseFloat(booking[0].price);
+    const priceType = booking[0].price_type;
 
-    // Apply minimum 1-hour charge AND daily rate if >5 hours
-    const billedHours = Math.max(totalHours, 1); // Minimum 1 hour
-    const timeCost = calculateTimeCost(sharedAreaType, billedHours);
+    if (priceType === "hour") {
+      // Minimum 1 hour charge, then bill by actual hours
+      const billedHours = Math.max(totalHours, 1);
+      roomCost = roomPrice * billedHours;
+    } else if (priceType === "day") {
+      // Minimum 1 day charge, then bill by actual days
+      const billedDays = Math.max(totalDays, 1);
+      roomCost = roomPrice * billedDays;
+    }
+
+    // 4. Calculate kitchen items cost
     const itemsCost = await calculateKitchenItemsCost(kitchen_items);
-    const totalCost = timeCost + itemsCost;
+    const totalCost = roomCost + itemsCost;
 
-    console.log("Actual time stayed (minutes):", totalTimeMinutes);
-    console.log("Billed hours:", billedHours);
-    console.log("Time cost:", timeCost);
-    console.log("Kitchen items cost:", itemsCost);
-    console.log("Total cost:", totalCost);
+    console.log("Pricing details:", {
+      room: booking[0].room,
+      priceType: priceType,
+      roomPrice: roomPrice,
+      totalTimeMinutes: totalTimeMinutes,
+      roomCost: roomCost,
+      itemsCost: itemsCost,
+      totalCost: totalCost,
+    });
 
-    // 3. Update the shared_area_checkins table (store actual time)
+    // 5. Update the booking
     await db.query(
-      "UPDATE shared_area_checkins SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
-      [totalTimeMinutes, totalCost, id] // Store actual minutes, but cost uses min 1 hour + daily rate logic
+      "UPDATE bookings SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
+      [totalTimeMinutes, totalCost, id]
     );
 
-    // 4. Remove from active_shared_area_customers table
-    await db.query(
-      "DELETE FROM active_shared_area_customers WHERE customer_id = ?",
-      [checkIn[0].customer_id]
-    );
+    // 6. Remove from active_customers table
+    await db.query("DELETE FROM active_customers WHERE customer_id = ?", [
+      booking[0].customer_id,
+    ]);
 
-    // 5. Return updated check-in details (shows actual time)
-    const [updatedCheckIn] = await db.query(
-      `SELECT shared_area_checkins.*, customers.name AS name 
-       FROM shared_area_checkins 
-       LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id 
-       WHERE shared_area_checkins.id = ?`,
+    // 7. Return updated booking details
+    const [updatedBooking] = await db.query(
+      `SELECT bookings.*, customers.name AS customer_name 
+       FROM bookings 
+       LEFT JOIN customers ON bookings.customer_id = customers.id 
+       WHERE bookings.id = ?`,
       [id]
     );
 
-    console.log("Check-out successful for ID:", id);
-    res.json(updatedCheckIn[0]);
+    console.log("Check-out successful for booking ID:", id);
+    res.json(updatedBooking[0]);
   } catch (err) {
     console.error("Error during check-out:", err.message);
     console.error("Error stack trace:", err.stack);
     res.status(500).json({ message: err.message });
   }
 });
-
 // Calculate the cost of kitchen items
 async function calculateKitchenItemsCost(kitchenItemsWithQuantities) {
   if (!kitchenItemsWithQuantities || kitchenItemsWithQuantities.length === 0)
