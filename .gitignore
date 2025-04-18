@@ -1,0 +1,7 @@
+# Backend
+.env
+node_modules/
+
+# Frontend
+comma-dashboard/node_modules/
+comma-dashboard/dist/

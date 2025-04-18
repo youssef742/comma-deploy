@@ -1,0 +1,8 @@
+receptionist: 30006090103191
+password: password123
+_______________________________
+branch_manager: 30006090103192
+password: password456
+_______________________________
+CEO: 30006090103193
+password: password789

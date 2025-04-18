@@ -1,0 +1,20 @@
+[
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "1234567890",
+      "nationalId": "123456789",
+      "warnings": 2,
+      "isActive": 1
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "phone": "0987654321",
+      "nationalId": "987654321",
+      "warnings": 4,
+      "isActive": 0
+    }
+  ]
