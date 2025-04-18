@@ -106,7 +106,7 @@ export default {
     async loadActiveCustomers() {
       try {
         const response = await axios.get(
-          "/api/bookings/active-customers"
+          "http://localhost:3000/api/bookings/active-customers"
         );
         this.activeCustomers = response.data;
       } catch (error) {

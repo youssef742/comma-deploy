@@ -128,6 +128,7 @@
               id="email"
               type="email"
               required
+              @blur="validateEmailOnBlur"
             />
           </div>
           <div class="form-group">
@@ -135,14 +136,30 @@
               <Icon icon="mingcute:phone-line" width="24px" height="24px" />
               Phone:
             </label>
-            <input v-model="newCustomer.phone" id="phone" required />
+            <input
+              v-model="newCustomer.phone"
+              id="phone"
+              pattern="\d{11}"
+              maxlength="11"
+              required
+              title="Phone number must be exactly 11 digits (numbers only)"
+              @input="formatPhone"
+            />
           </div>
           <div class="form-group">
             <label for="nationalId">
               <Icon icon="teenyicons:id-solid" width="24px" height="24px" />
               National ID:
             </label>
-            <input v-model="newCustomer.nationalId" id="nationalId" required />
+            <input
+              v-model="newCustomer.nationalId"
+              id="nationalId"
+              pattern="\d{14}"
+              maxlength="14"
+              required
+              title="National ID must be exactly 14 digits (numbers only)"
+              @input="formatNationalId"
+            />
           </div>
           <div class="form-group">
             <label for="branch">
@@ -243,6 +260,7 @@
               id="edit-email"
               type="email"
               required
+              @blur="validateEditEmailOnBlur"
             />
           </div>
           <div class="form-group">
@@ -250,7 +268,15 @@
               <Icon icon="mingcute:phone-line" width="24px" height="24px" />
               Phone:
             </label>
-            <input v-model="editCustomerData.phone" id="edit-phone" required />
+            <input
+              v-model="editCustomerData.phone"
+              id="edit-phone"
+              pattern="\d{11}"
+              maxlength="11"
+              required
+              title="Phone number must be exactly 11 digits (numbers only)"
+              @input="formatEditPhone"
+            />
           </div>
           <div class="form-group">
             <label for="edit-nationalId">
@@ -260,7 +286,11 @@
             <input
               v-model="editCustomerData.nationalId"
               id="edit-nationalId"
+              pattern="\d{14}"
+              maxlength="14"
               required
+              title="National ID must be exactly 14 digits (numbers only)"
+              @input="formatEditNationalId"
             />
           </div>
           <div class="form-group">
@@ -418,9 +448,82 @@ export default {
     await this.fetchRooms();
   },
   methods: {
+    validateNationalId(nationalId) {
+      return /^\d{14}$/.test(nationalId);
+    },
+    validatePhone(phone) {
+      return /^\d{11}$/.test(phone);
+    },
+    validateEmail(email) {
+      return /^[a-zA-Z0-9._%+-]+@(gmail\.com|yahoo\.com)$/.test(email);
+    },
+    formatNationalId() {
+      // Remove any non-digit characters
+      this.newCustomer.nationalId = this.newCustomer.nationalId.replace(
+        /\D/g,
+        ""
+      );
+      // Limit to 14 characters
+      if (this.newCustomer.nationalId.length > 14) {
+        this.newCustomer.nationalId = this.newCustomer.nationalId.substring(
+          0,
+          14
+        );
+      }
+    },
+
+    formatPhone() {
+      // Remove any non-digit characters
+      this.newCustomer.phone = this.newCustomer.phone.replace(/\D/g, "");
+      // Limit to 11 characters
+      if (this.newCustomer.phone.length > 11) {
+        this.newCustomer.phone = this.newCustomer.phone.substring(0, 11);
+      }
+    },
+
+    validateEmailOnBlur() {
+      if (
+        this.newCustomer.email &&
+        !this.validateEmail(this.newCustomer.email)
+      ) {
+        alert("Please use a valid @gmail.com or @yahoo.com email address");
+      }
+    },
+
+    // For edit form
+    formatEditNationalId() {
+      this.editCustomerData.nationalId =
+        this.editCustomerData.nationalId.replace(/\D/g, "");
+      if (this.editCustomerData.nationalId.length > 14) {
+        this.editCustomerData.nationalId =
+          this.editCustomerData.nationalId.substring(0, 14);
+      }
+    },
+
+    formatEditPhone() {
+      this.editCustomerData.phone = this.editCustomerData.phone.replace(
+        /\D/g,
+        ""
+      );
+      if (this.editCustomerData.phone.length > 11) {
+        this.editCustomerData.phone = this.editCustomerData.phone.substring(
+          0,
+          11
+        );
+      }
+    },
+
+    validateEditEmailOnBlur() {
+      if (
+        this.editCustomerData.email &&
+        !this.validateEmail(this.editCustomerData.email)
+      ) {
+        alert("Please use a valid @gmail.com or @yahoo.com email address");
+      }
+    },
     async fetchRooms() {
       try {
-        const response = await axios.get("/api/rooms");
+        const response = await axios.get("http://localhost:3000/api/rooms");
         this.rooms = response.data;
       } catch (error) {
         console.error("Error fetching rooms:", error);
@@ -429,7 +532,7 @@ export default {
     },
     async fetchCustomers() {
       try {
-        const response = await axios.get("/api/customers");
+        const response = await axios.get("http://localhost:3000/api/customers");
         console.log("API Response:", response.data);
 
         // Map the API response to the expected structure
@@ -451,7 +554,7 @@ export default {
     async fetchBranches() {
       try {
         // Call the /branches API endpoint
-        const response = await axios.get("/api/branches");
+        const response = await axios.get("http://localhost:3000/api/branches");
         this.branches = response.data; // Store the fetched branches
       } catch (error) {
         console.error("Error fetching branches:", error);
@@ -460,6 +563,20 @@ export default {
 
     async addCustomer() {
       console.log("Selected Branch ID:", this.selectedBranch);
+      if (!this.validateNationalId(this.newCustomer.nationalId)) {
+        alert("National ID must be exactly 14 digits");
+        return;
+      }
+
+      if (!this.validatePhone(this.newCustomer.phone)) {
+        alert("Phone number must be exactly 11 digits");
+        return;
+      }
+
+      if (!this.validateEmail(this.newCustomer.email)) {
+        alert("Email must be from @gmail.com or @yahoo.com");
+        return;
+      }
       try {
         // Find the branch name based on the selected branch ID
         const selectedBranchObj = this.branches.find(
@@ -487,7 +604,10 @@ export default {
         };
 
         // Add customer to the database
-        const customerResponse = await axios.post("/api/customers", payload);
+        const customerResponse = await axios.post(
+          "http://localhost:3000/api/customers",
+          payload
+        );
 
         // Automatically check in the customer
         const checkInPayload = {
@@ -502,7 +622,10 @@ export default {
               : null,
         };
 
-        await axios.post("/api/shared-area/check-in", checkInPayload);
+        await axios.post(
+          "http://localhost:3000/api/shared-area/check-in",
+          checkInPayload
+        );
 
         // Update the local customers list
         this.customers.push({
@@ -548,6 +671,20 @@ export default {
       this.showEditCustomerForm = true; // Show the edit dialog
     },
     async saveEditedCustomer() {
+      if (!this.validateNationalId(this.editCustomerData.nationalId)) {
+        alert("National ID must be exactly 14 digits");
+        return;
+      }
+
+      if (!this.validatePhone(this.editCustomerData.phone)) {
+        alert("Phone number must be exactly 11 digits");
+        return;
+      }
+
+      if (!this.validateEmail(this.editCustomerData.email)) {
+        alert("Email must be from @gmail.com or @yahoo.com");
+        return;
+      }
       try {
         // Prepare the payload for the API
         const payload = {
@@ -562,7 +699,7 @@ export default {
 
         // Send a PUT request to the API
         const response = await axios.put(
-          `/api/customers/${this.editCustomerData.id}`,
+          `http://localhost:3000/api/customers/${this.editCustomerData.id}`,
           payload
         );
 
@@ -604,7 +741,7 @@ export default {
       try {
         // Send a DELETE request to the API
         const response = await axios.delete(
-          `/api/customers/${this.customerToDelete.id}`
+          `http://localhost:3000/api/customers/${this.customerToDelete.id}`
         );
 
         // Log the API response
@@ -645,11 +782,15 @@ export default {
 
       try {
         // Send the file to the backend API
-        const response = await axios.post("/api/customers/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data", // Required for file uploads
-          },
-        });
+        const response = await axios.post(
+          "http://localhost:3000/api/customers/upload",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data", // Required for file uploads
+            },
+          }
+        );
 
         // Log the API response
         console.log("API Response:", response.data);
