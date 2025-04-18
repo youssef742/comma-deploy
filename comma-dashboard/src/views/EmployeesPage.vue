@@ -47,29 +47,45 @@
     <div v-if="showAddModal" class="modal">
       <div class="modal-content">
         <h2>Add Employee</h2>
-        <input v-model="newEmployee.name" placeholder="Name" />
+        <input v-model="newEmployee.name" placeholder="Name" required />
         <input
           v-model="newEmployee.password"
           placeholder="Password"
           type="password"
+          required
+          @input="validatePasswordInput"
         />
-        <select v-model="newEmployee.role">
-          <option value="Receptionist">admin</option>
+        <select v-model="newEmployee.role" place required>
+          <option value="Receptionist">Admin</option>
           <option value="CEO">CEO</option>
           <option value="Branch Manager">Branch Manager</option>
         </select>
-        <input v-model="newEmployee.national_id" placeholder="National ID" />
-        <select v-model="newEmployee.branch">
+        <input
+          v-model="newEmployee.national_id"
+          id="nationalId"
+          pattern="\d{14}"
+          maxlength="14"
+          required
+          placeholder="National ID"
+          title="National ID must be exactly 14 digits (numbers only)"
+          @input="formatNationalId"
+        />
+        <select v-model="newEmployee.branch" required>
           <option value="Manyal">Manyal</option>
           <option value="Nasr City">Nasr City</option>
           <option value="Dokki">Dokki</option>
         </select>
         <input
           v-model="newEmployee.age"
-          placeholder="Mobile number"
-          type="number"
+          id="phone"
+          placeholder="Mobile Number"
+          pattern="\d{11}"
+          maxlength="11"
+          required
+          title="Phone number must be exactly 11 digits (numbers only)"
+          @input="formatPhone"
         />
-        <input v-model="newEmployee.faculty" placeholder="Faculty" />
+        <input v-model="newEmployee.faculty" placeholder="Faculty" required />
         <button @click="addEmployee">Save</button>
         <button @click="closeAddEmployeeModal">Cancel</button>
       </div>
@@ -82,15 +98,25 @@
         <input v-model="editEmployee.name" placeholder="Name" />
         <input
           v-model="editEmployee.password"
-          placeholder="Password"
+          placeholder="Password (leave blank to keep current)"
           type="password"
+          @input="validateEditPasswordInput"
         />
-        <select v-model="editEmployee.role">
-          <option value="Receptionist">Receptionist</option>
+        <select v-model="editEmployee.role" placeholder="Role">
+          <option value="Receptionist">Admin</option>
           <option value="CEO">CEO</option>
           <option value="Branch Manager">Branch Manager</option>
         </select>
-        <input v-model="editEmployee.national_id" placeholder="National ID" />
+        <input
+          v-model="editEmployee.national_id"
+          id="nationalId"
+          pattern="\d{14}"
+          maxlength="14"
+          required
+          placeholder="National ID"
+          title="National ID must be exactly 14 digits (numbers only)"
+          @input="formatNationalId"
+        />
         <select v-model="editEmployee.branch">
           <option value="Manyal">Manyal</option>
           <option value="Nasr City">Nasr City</option>
@@ -98,8 +124,13 @@
         </select>
         <input
           v-model="editEmployee.age"
+          id="phone"
+          pattern="\d{11}"
+          maxlength="11"
+          required
           placeholder="Mobile Number"
-          type="number"
+          title="Phone number must be exactly 11 digits (numbers only)"
+          @input="formatPhone"
         />
         <input v-model="editEmployee.faculty" placeholder="Faculty" />
         <button @click="updateEmployee">Save</button>
@@ -169,6 +200,112 @@ export default {
     await this.fetchEmployeeCount();
   },
   methods: {
+    validatePassword(password) {
+      // At least 8 characters
+      if (password.length < 8) {
+        return {
+          valid: false,
+          message: "Password must be at least 8 characters",
+        };
+      }
+
+      // At least one uppercase letter
+      if (!/[A-Z]/.test(password)) {
+        return {
+          valid: false,
+          message: "Password must contain at least one uppercase letter",
+        };
+      }
+
+      // At least one number
+      if (!/[0-9]/.test(password)) {
+        return {
+          valid: false,
+          message: "Password must contain at least one number",
+        };
+      }
+
+      // At least one special character
+      if (!/[^A-Za-z0-9]/.test(password)) {
+        return {
+          valid: false,
+          message: "Password must contain at least one special character",
+        };
+      }
+
+      return { valid: true };
+    },
+    validatePasswordInput() {
+      const validation = this.validatePassword(this.newEmployee.password);
+      if (!validation.valid) {
+        this.passwordError = validation.message;
+      } else {
+        this.passwordError = "";
+      }
+    },
+    validateNationalId(national_id) {
+      return /^\d{14}$/.test(national_id);
+    },
+    validatePhone(phone) {
+      return /^\d{11}$/.test(phone);
+    },
+
+    formatNationalId() {
+      // Remove any non-digit characters
+      this.newEmployee.national_id = this.newEmployee.national_id.replace(
+        /\D/g,
+        ""
+      );
+      // Limit to 14 characters
+      if (this.newEmployee.national_id.length > 14) {
+        this.newEmployee.national_id = this.newEmployee.national_id.substring(
+          0,
+          14
+        );
+      }
+    },
+
+    formatPhone() {
+      // Remove any non-digit characters
+      this.newEmployee.age = this.newEmployee.age.replace(/\D/g, "");
+      // Limit to 11 characters
+      if (this.newEmployee.age.length > 11) {
+        this.newEmployee.age = this.newEmployee.age.substring(0, 11);
+      }
+    },
+
+    // For edit form
+    formatEditNationalId() {
+      this.editEmployee.national_id = this.editEmployee.national_id.replace(
+        /\D/g,
+        ""
+      );
+      if (this.editEmployee.national_id.length > 14) {
+        this.editEmployee.national_id = this.editEmployee.national_id.substring(
+          0,
+          14
+        );
+      }
+    },
+
+    formatEditPhone() {
+      this.editEmployee.age = this.editEmployee.age.replace(/\D/g, "");
+      if (this.editEmployee.age.length > 11) {
+        this.editEmployee.age = this.editEmployee.age.substring(0, 11);
+      }
+    },
+    validateEditPasswordInput() {
+      // Only validate if password is being changed (not empty)
+      if (this.editEmployee.password && this.editEmployee.password.length > 0) {
+        const validation = this.validatePassword(this.editEmployee.password);
+        if (!validation.valid) {
+          this.editPasswordError = validation.message;
+          return false;
+        }
+      }
+      this.editPasswordError = "";
+      return true;
+    },
     // Fetch all employees
     async fetchEmployees() {
       try {
@@ -209,6 +346,22 @@ export default {
     },
     // Add a new employee
     async addEmployee() {
+      const passwordValidation = this.validatePassword(
+        this.newEmployee.password
+      );
+      if (!passwordValidation.valid) {
+        toastr.error(passwordValidation.message);
+        return;
+      }
+      if (!this.validateNationalId(this.newEmployee.national_id)) {
+        alert("National ID must be exactly 14 digits");
+        return;
+      }
+
+      if (!this.validatePhone(this.newEmployee.age)) {
+        alert("Phone number must be exactly 11 digits");
+        return;
+      }
       try {
         const payload = {
           name: this.newEmployee.name,
@@ -251,6 +404,25 @@ export default {
     },
     // Update an employee
     async updateEmployee() {
+      if (this.editEmployee.password && this.editEmployee.password.length > 0) {
+        const passwordValidation = this.validatePassword(
+          this.editEmployee.password
+        );
+        if (!passwordValidation.valid) {
+          toastr.error(passwordValidation.message);
+          return;
+        }
+      }
+      if (!this.validateNationalId(this.editEmployee.national_id)) {
+        alert("National ID must be exactly 14 digits");
+        return;
+      }
+
+      if (!this.validatePhone(this.editEmployee.age)) {
+        alert("Phone number must be exactly 11 digits");
+        return;
+      }
+
       try {
         const payload = {
           name: this.editEmployee.name,

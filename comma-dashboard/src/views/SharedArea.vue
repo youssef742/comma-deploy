@@ -31,7 +31,7 @@
     <table class="custom-table">
       <thead>
         <tr>
-          <th>Check-In ID</th>
+          <th>Customer ID</th>
           <th>Customer Name</th>
           <th>Check-In Time</th>
           <th>Check-Out Time</th>
@@ -48,7 +48,7 @@
           </td>
         </tr>
         <tr v-for="checkIn in paginatedCheckIns" :key="checkIn.id">
-          <td>{{ checkIn.id }}</td>
+          <td>{{ checkIn.customer_id }}</td>
           <td>{{ checkIn.customer_name }}</td>
           <td>
             {{ formatDateTime(checkIn.check_in_time) || "Not Checked In" }}
@@ -263,9 +263,7 @@ export default {
   methods: {
     async loadKitchenItems() {
       try {
-        const response = await axios.get(
-          "http://localhost:3000/api/kitchen-items"
-        );
+        const response = await axios.get("/api/kitchen-items");
         this.kitchenItems = response.data;
       } catch (error) {
         console.error("Error loading kitchen items:", error);
@@ -279,11 +277,11 @@ export default {
         // Check if the path includes '/All', which will match all related paths
         if (this.$route.path.includes("/All")) {
           // ✅ Correct API route to fetch all check-ins
-          url = "http://localhost:3000/api/shared-area/shared-area-checkins";
+          url = "/api/shared-area/shared-area-checkins";
         } else {
           // Get check-ins for a specific type
           const type = this.$route.params.type;
-          url = `http://localhost:3000/api/shared-area/shared-area-checkins/${type}`;
+          url = `/api/shared-area/shared-area-checkins/${type}`;
         }
 
         const response = await axios.get(url);
@@ -301,7 +299,7 @@ export default {
 
       try {
         const response = await axios.get(
-          `http://localhost:3000/api/customers/${this.checkInData.customerId}`
+          `/api/customers/${this.checkInData.customerId}`
         );
         if (response.data) {
           this.customerError = "";
@@ -326,10 +324,7 @@ export default {
           customer_id: this.checkInData.customerId,
           type: this.checkInData.type,
         };
-        const response = await axios.post(
-          "http://localhost:3000/api/shared-area/check-in",
-          payload
-        );
+        const response = await axios.post("/api/shared-area/check-in", payload);
         this.checkIns.push(response.data);
         this.showCheckInForm = false;
         this.resetCheckInData();
@@ -355,7 +350,9 @@ export default {
     async handleCheckOut() {
       try {
         const checkIn = this.checkIns.find(
-          (c) => c.customer_id === this.checkOutData.customerId
+          (c) =>
+            c.customer_id === this.checkOutData.customerId &&
+            c.status === "active"
         );
 
         if (!checkIn) {
@@ -375,7 +372,7 @@ export default {
         };
 
         const response = await axios.put(
-          `http://localhost:3000/api/shared-area/check-out/${checkIn.id}`,
+          `/api/shared-area/check-out/${checkIn.id}`,
           payload
         );
 
@@ -430,7 +427,7 @@ export default {
 
       try {
         await axios.delete(
-          `http://localhost:3000/api/shared-area-checkins/${this.checkInToDelete.id}`,
+          `/api/shared-area-checkins/${this.checkInToDelete.id}`,
           {
             data: { reason: this.cancellationReason },
           }
