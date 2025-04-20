@@ -72,7 +72,11 @@
             <button class="btn-edit" @click="editCustomer(customer)">
               Edit
             </button>
-            <button class="btn-delete" @click="confirmDelete(customer)">
+            <button
+              class="btn-delete"
+              @click="confirmDelete(customer)"
+              v-if="['ceo', 'branch manager'].includes($store.state.role)"
+            >
               Delete
             </button>
           </td>
@@ -455,7 +459,7 @@ export default {
       return /^\d{11}$/.test(phone);
     },
     validateEmail(email) {
-      return /^[a-zA-Z0-9._%+-]+@(gmail\.com|yahoo\.com)$/.test(email);
+      return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
     },
     formatNationalId() {
       // Remove any non-digit characters
@@ -486,7 +490,7 @@ export default {
         this.newCustomer.email &&
         !this.validateEmail(this.newCustomer.email)
       ) {
-        alert("Please use a valid @gmail.com or @yahoo.com email address");
+        alert("Please use a valid email address");
       }
     },
 
@@ -518,7 +522,7 @@ export default {
         this.editCustomerData.email &&
         !this.validateEmail(this.editCustomerData.email)
       ) {
-        alert("Please use a valid @gmail.com or @yahoo.com email address");
+        alert("Please use a valid email address");
       }
     },
     async fetchRooms() {
@@ -563,6 +567,8 @@ export default {
 
     async addCustomer() {
       console.log("Selected Branch ID:", this.selectedBranch);
+
+      // Validate inputs
       if (!this.validateNationalId(this.newCustomer.nationalId)) {
         alert("National ID must be exactly 14 digits");
         return;
@@ -574,9 +580,10 @@ export default {
       }
 
       if (!this.validateEmail(this.newCustomer.email)) {
-        alert("Email must be from @gmail.com or @yahoo.com");
+        alert("Please use a valid email address");
         return;
       }
+
       try {
         // Find the branch name based on the selected branch ID
         const selectedBranchObj = this.branches.find(
@@ -587,6 +594,7 @@ export default {
           return;
         }
 
+        // Prepare payload
         const payload = {
           name: this.newCustomer.name,
           email: this.newCustomer.email,
@@ -594,7 +602,7 @@ export default {
           national_id: this.newCustomer.nationalId,
           warnings: this.newCustomer.warnings,
           is_active: this.newCustomer.isActive === 1,
-          branch: selectedBranchObj.name, // Send the branch name instead of the ID
+          branch: selectedBranchObj.name,
           reservation: this.newCustomer.reservation,
           sharedAreaType: this.newCustomer.sharedAreaType,
           room:
@@ -606,20 +614,43 @@ export default {
         // Add customer to the database
         const customerResponse = await axios.post("/api/customers", payload);
 
-        // Automatically check in the customer
-        const checkInPayload = {
-          customer_id: customerResponse.data.id,
-          type:
-            this.newCustomer.reservation === "Shared Area"
-              ? this.newCustomer.sharedAreaType
-              : "Private Room",
-          room:
-            this.newCustomer.reservation === "Private Room"
-              ? this.newCustomer.room
-              : null,
-        };
+        // Try to check in the customer (separate try-catch to handle check-in failures)
+        try {
+          let roomName = null;
+          if (this.newCustomer.reservation === "Private Room") {
+            const selectedRoom = this.rooms.find(
+              (room) => room.id === this.newCustomer.room
+            );
+            if (!selectedRoom) {
+              throw new Error("Selected room not found");
+            }
+            roomName = selectedRoom.name;
+          }
 
-        await axios.post("/api/shared-area/check-in", checkInPayload);
+          const checkInPayload = {
+            customer_id: customerResponse.data.id,
+            type:
+              this.newCustomer.reservation === "Shared Area"
+                ? this.newCustomer.sharedAreaType
+                : "Private Room",
+            room: roomName,
+          };
+
+          const endpoint =
+            this.newCustomer.reservation === "Shared Area"
+              ? "/api/shared-area/check-in"
+              : "/api/bookings/check-in";
+
+          await axios.post(endpoint, checkInPayload);
+        } catch (checkInError) {
+          console.warn(
+            "Check-in failed but customer was created:",
+            checkInError
+          );
+          toastr.warning(
+            "Customer created but check-in failed. Please check them in manually."
+          );
+        }
 
         // Update the local customers list
         this.customers.push({
@@ -636,10 +667,28 @@ export default {
         // Close the form and reset data
         this.showAddCustomerForm = false;
         this.resetNewCustomer();
-        toastr.success("Customer added and checked in successfully!");
+        toastr.success("Customer added successfully and is being checked in!");
       } catch (error) {
         console.error("Error adding customer:", error);
-        toastr.error("Failed to add customer. Please try again.");
+
+        let errorMessage = "Failed to add customer. Please try again.";
+
+        // Handle specific error cases
+        if (error.response) {
+          if (error.response.status === 409) {
+            errorMessage =
+              "Customer already exists with this Email, Phone or National ID";
+            // Refresh the customer list to show the existing customer
+            this.fetchCustomers();
+          } else if (error.response.data?.error) {
+            errorMessage = error.response.data.error;
+            if (error.response.data.details) {
+              errorMessage += `: ${error.response.data.details}`;
+            }
+          }
+        }
+
+        toastr.error(errorMessage);
       }
     },
 
@@ -676,7 +725,7 @@ export default {
       }
 
       if (!this.validateEmail(this.editCustomerData.email)) {
-        alert("Email must be from @gmail.com or @yahoo.com");
+        alert("Please use a valid email address");
         return;
       }
       try {

@@ -56,46 +56,41 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   console.log("Request Body:", req.body);
   try {
-    const {
-      name,
-      email,
-      phone,
-      national_id,
-      warnings,
-      is_active,
-      room,
-      branch,
-      reservation,
-      sharedAreaType,
-    } = req.body;
+    const { name, email, phone, national_id, branch } = req.body;
 
-    // Validate branch
+    // Validate required fields
     if (!branch) {
       return res.status(400).json({ error: "Branch is required" });
     }
-    console.log("Branch Value:", branch);
 
-    // Generate prefix from the first three letters of the branch name
+    // Check if customer already exists (by email or phone)
+    const [existingCustomer] = await db.query(
+      "SELECT id FROM customers WHERE email = ? OR phone = ? LIMIT 1",
+      [email, phone]
+    );
+
+    if (existingCustomer.length > 0) {
+      return res.status(409).json({
+        error: "Customer already exists",
+        details: "A customer with this email or phone already exists",
+      });
+    }
+
+    // Generate customer ID
     const prefix = branch.substring(0, 3).toUpperCase();
-
-    // Get the last customer ID for the specific branch
     const [lastCustomer] = await db.query(
       "SELECT id FROM customers WHERE id LIKE ? ORDER BY id DESC LIMIT 1",
       [`${prefix}-%`]
     );
 
-    let newCustomerId;
-    if (lastCustomer.length > 0) {
-      // Extract the numeric part of the last ID and increment it
-      const lastId = lastCustomer[0].id;
-      const lastNumber = parseInt(lastId.split("-")[1], 10);
-      newCustomerId = `${prefix}-${String(lastNumber + 1).padStart(2, "0")}`;
-    } else {
-      // If no customer exists for this branch, start with 01
-      newCustomerId = `${prefix}-01`;
-    }
+    const newCustomerId =
+      lastCustomer.length > 0
+        ? `${prefix}-${String(
+            parseInt(lastCustomer[0].id.split("-")[1], 10) + 1
+          ).padStart(2, "0")}`
+        : `${prefix}-01`;
 
-    // Insert customer into the database
+    // Insert new customer
     const [result] = await db.query(
       "INSERT INTO customers (id, name, email, phone, national_id, warnings, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [
@@ -104,34 +99,36 @@ router.post("/", async (req, res) => {
         email,
         phone,
         national_id,
-        warnings || 0,
-        is_active || true,
+        req.body.warnings || 0,
+        req.body.is_active || true,
       ]
     );
 
-    // Automatically check in the new customer (add them to the bookings table)
-    await db.query(
-      "INSERT INTO bookings (customer_id, room, check_in_time, total_time, total_cost, customer_name) VALUES (?, ?, NOW(), ?, ?, ?)",
-      [
-        newCustomerId,
-        reservation === "Shared Area" ? "Shared Area" : room, // Use "Shared Area" if reservation is Shared Area
-        0,
-        0.0,
-        name,
-      ]
-    );
-
-    // Return success response
     res.status(201).json({
-      message: "Customer added and checked in successfully",
+      message: "Customer added successfully",
       id: newCustomerId,
-      ...req.body,
+      name,
+      email,
+      phone,
+      national_id: national_id,
+      warnings: req.body.warnings || 0,
+      is_active: req.body.is_active || true,
     });
   } catch (err) {
-    console.error(err);
-    res
-      .status(500)
-      .json({ error: "Internal server error", details: err.message });
+    console.error("Database error:", err);
+
+    // Handle duplicate entry error specifically
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        error: "Duplicate entry",
+        details: "A customer with this information already exists",
+      });
+    }
+
+    res.status(500).json({
+      error: "Internal server error",
+      details: err.message,
+    });
   }
 });
 

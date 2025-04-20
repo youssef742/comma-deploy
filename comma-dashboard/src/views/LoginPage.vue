@@ -25,27 +25,16 @@ export default {
   methods: {
     async login() {
       try {
-        const response = await fetch("/api/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            national_id: this.username,
-            password: this.password,
-          }),
+        await this.$store.dispatch("login", {
+          national_id: this.username,
+          password: this.password,
         });
 
-        const data = await response.json();
-        if (response.ok) {
-          this.$store.commit("setRole", data.role); // Store role in Vuex
-          this.$router.push("/home");
-        } else {
-          alert(data.message || "Login failed");
-        }
+        // Redirect to home after successful login
+        this.$router.push("/home");
       } catch (error) {
-        console.error("Error during login:", error);
-        alert("An error occurred during login");
+        // Error will be shown from the store's state
+        console.error("Login error:", error);
       }
     },
   },

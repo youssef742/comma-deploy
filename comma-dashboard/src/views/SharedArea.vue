@@ -60,16 +60,23 @@
             {{ checkIn.total_cost ? `${checkIn.total_cost} EGP` : "N/A" }}
           </td>
           <td>
-            {{ checkIn.total_time ? `${checkIn.total_time} minutes` : "N/A" }}
+            {{ checkIn.total_time ? formatTime(checkIn.total_time) : "N/A" }}
           </td>
           <td>{{ checkIn.status }}</td>
           <td>
+            <button
+              class="btn-checkout"
+              @click="initiateCheckOut(checkIn)"
+              v-if="checkIn.status === 'active'"
+            >
+              Check-Out
+            </button>
             <button
               class="btn-delete"
               @click="confirmDeleteCheckIn(checkIn)"
               v-if="checkIn.status === 'active'"
             >
-              Cancel Check-In
+              Cancel
             </button>
           </td>
         </tr>
@@ -126,6 +133,12 @@
     <div v-if="showCheckOutForm" class="dialog-overlay">
       <div class="dialog">
         <h2>Check-Out Customer</h2>
+        <div v-if="checkOutData.customerId" class="customer-info">
+          <p>Customer ID: {{ checkOutData.customerId }}</p>
+          <p v-if="getCustomerName(checkOutData.customerId)">
+            Name: {{ getCustomerName(checkOutData.customerId) }}
+          </p>
+        </div>
         <form @submit.prevent="handleCheckOut" class="checkout-form">
           <div class="form-group">
             <label for="checkOutCustomerId">Customer ID:</label>
@@ -261,6 +274,39 @@ export default {
     await this.loadCheckIns();
   },
   methods: {
+    formatTime(minutes) {
+      if (!minutes) return "N/A";
+
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+
+      if (hours > 0 && mins > 0) {
+        return `${hours}h ${mins} mins`;
+      } else if (hours > 0) {
+        return `${hours}h`;
+      } else {
+        return `${mins} mins`;
+      }
+    },
+    getCustomerName(customerId) {
+      const checkIn = this.checkIns.find((c) => c.customer_id === customerId);
+      return checkIn ? checkIn.customer_name : "";
+    },
+    async initiateCheckOut(checkIn) {
+      try {
+        // Set the customer ID in checkOutData
+        this.checkOutData.customerId = checkIn.customer_id;
+
+        if (this.kitchenItems.length === 0) {
+          await this.loadKitchenItems();
+        }
+
+        this.showCheckOutForm = true;
+      } catch (error) {
+        console.error("Error initiating check-out:", error);
+        toastr.error("Failed to initiate check-out process");
+      }
+    },
     async loadKitchenItems() {
       try {
         const response = await axios.get("/api/kitchen-items");
@@ -325,26 +371,26 @@ export default {
           type: this.checkInData.type,
         };
         const response = await axios.post("/api/shared-area/check-in", payload);
+
         this.checkIns.push(response.data);
         this.showCheckInForm = false;
         this.resetCheckInData();
         this.loadCheckIns();
-        //   Swal.fire({
-        //     title: "Check-In Successful!",
-        //     html: `
-        //   <p>Customer: <strong>${response.data.customer_name}</strong></p>
-        //   <p>Check-In Time: <strong>${this.formatDateTime(
-        //     response.data.check_in_time
-        //   )}</strong></p>
-        //   <p>Type: <strong>${response.data.type}</strong></p>
-        // `,
-        //     icon: "success",
-        //     confirmButtonText: "OK",
-        //   });
         toastr.success("Customer checked-in successfully!");
       } catch (error) {
         console.error("Error checking in:", error);
-        toastr.error("Failed to check in. Please try again.");
+
+        // Custom error message for already checked-in customers
+        if (
+          error.response &&
+          error.response.status === 400 &&
+          error.response.data.message ===
+            "Customer already has an active check-in"
+        ) {
+          toastr.error("User already checked in");
+        } else {
+          toastr.error("Failed to check in. Please try again.");
+        }
       }
     },
     async handleCheckOut() {
@@ -387,7 +433,9 @@ export default {
           title: "Check-Out Successful!",
           html: `
             <p>Customer: <strong>${response.data.customer_name}</strong></p>
-            <p>Total Time: <strong>${response.data.total_time} minutes</strong></p>
+            <p>Total Time: <strong>${this.formatTime(
+              response.data.total_time
+            )}</strong></p>
             <p>Total Cost: <strong>${response.data.total_cost} EGP</strong></p>
           `,
           icon: "success",
@@ -691,5 +739,19 @@ export default {
 .quantity-input {
   width: 60px;
   margin-top: 5px;
+}
+.btn-checkout {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+  transition: background-color 0.3s;
+}
+
+.btn-checkout:hover {
+  background-color: #45a049;
 }
 </style>

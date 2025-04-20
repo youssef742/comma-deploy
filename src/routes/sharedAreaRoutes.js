@@ -45,7 +45,14 @@ router.get("/shared-area-checkins/:type?", async (req, res) => {
       query += ` WHERE shared_area_checkins.type = ?`;
       params.push(type);
     }
-    query += ` ORDER BY shared_area_checkins.check_in_time DESC`;
+    query += `
+      ORDER BY 
+        CASE 
+          WHEN shared_area_checkins.status = 'active' THEN 1
+          ELSE 2
+        END,
+        shared_area_checkins.check_in_time DESC
+    `;
     console.log("Executing query:", query); // Debugging log
     console.log("Query parameters:", params); // Debugging log
 
@@ -69,7 +76,12 @@ router.get("/", async (req, res) => {
           customers.name AS name 
         FROM shared_area_checkins 
         LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id
-        ORDER BY shared_area_checkins.check_in_time DESC
+        ORDER BY 
+        CASE 
+          WHEN shared_area_checkins.status = 'active' THEN 1
+          ELSE 2
+        END,
+        shared_area_checkins.check_in_time DESC
         
       `);
     console.log("All check-ins fetched successfully:", checkIns); // Debugging log
@@ -208,28 +220,39 @@ router.put("/check-out/:id", async (req, res) => {
       return res.status(404).json({ message: "Check-in not found" });
     }
 
-    // 2. Calculate total time (actual) and cost
     const checkInTime = new Date(checkIn[0].check_in_time);
     const checkOutTime = new Date();
     const totalTimeMinutes = Math.round(
       (checkOutTime - checkInTime) / (1000 * 60)
     ); // Actual minutes stayed
-    const totalHours = totalTimeMinutes / 60;
 
     const sharedAreaType = checkIn[0].type;
 
-    // Apply minimum 1-hour charge AND daily rate if >5 hours
-    const billedHours = Math.max(totalHours, 1); // Minimum 1 hour
-    const timeCost = calculateTimeCost(sharedAreaType, billedHours);
+    // Calculate time in 30-minute increments
+    const fullHours = Math.floor(totalTimeMinutes / 60);
+    const remainingMinutes = totalTimeMinutes % 60;
+
+    // Round up to nearest 30-minute increment
+    let billedHalfHours = fullHours * 2; // Convert full hours to half-hour units
+    if (remainingMinutes > 0) {
+      billedHalfHours += 1; // Any minutes beyond full hours count as an additional half hour
+    }
+
+    // Apply minimum 1-hour charge (2 half-hour units)
+    billedHalfHours = Math.max(billedHalfHours, 2);
+
+    // Calculate time cost based on half-hour increments
+    const timeCost = calculateTimeCost(sharedAreaType, billedHalfHours / 2); // Convert back to hours for your existing function
+
     const itemsCost = await calculateKitchenItemsCost(kitchen_items);
     const totalCost = timeCost + itemsCost;
 
     console.log("Actual time stayed (minutes):", totalTimeMinutes);
-    console.log("Billed hours:", billedHours);
+    console.log("Billed half-hour units:", billedHalfHours);
+    console.log("Billed hours:", billedHalfHours / 2);
     console.log("Time cost:", timeCost);
     console.log("Kitchen items cost:", itemsCost);
     console.log("Total cost:", totalCost);
-
     // 3. Update the shared_area_checkins table (store actual time)
     await db.query(
       "UPDATE shared_area_checkins SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",

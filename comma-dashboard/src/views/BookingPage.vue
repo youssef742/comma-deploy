@@ -62,7 +62,7 @@
             {{ booking.total_cost ? `${booking.total_cost} EGP` : "N/A" }}
           </td>
           <td>
-            {{ booking.total_time ? `${booking.total_time} minutes` : "N/A" }}
+            {{ booking.total_time ? formatTime(booking.total_time) : "N/A" }}
           </td>
           <td>{{ booking.room || "N/A" }}</td>
           <td>
@@ -76,11 +76,18 @@
           </td>
           <td>
             <button
+              class="btn-checkout"
+              @click="initiateCheckOut(booking)"
+              v-if="!booking.check_out_time && booking.status !== 'cancelled'"
+            >
+              Check-Out
+            </button>
+            <button
               class="btn-delete"
               @click="confirmDeleteBooking(booking)"
               v-if="!booking.check_out_time && booking.status !== 'cancelled'"
             >
-              Cancel Booking
+              Cancel
             </button>
           </td>
         </tr>
@@ -173,6 +180,20 @@
               </div>
             </div>
           </div>
+          <div class="form-group">
+            <label for="discountPercentage"
+              >Discount Percentage (optional):</label
+            >
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              v-model="checkOutData.discountPercentage"
+              id="discountPercentage"
+              placeholder="0-100%"
+            />
+          </div>
           <div class="form-actions">
             <button type="button" @click="showCheckOutForm = false">
               Cancel
@@ -240,6 +261,7 @@ export default {
       checkOutData: {
         customerId: "",
         kitchenItems: [],
+        discountPercentage: null,
       },
       customerError: "",
       currentPage: 1,
@@ -279,6 +301,35 @@ export default {
     await this.loadBookings();
   },
   methods: {
+    initiateCheckOut(booking) {
+      // Set the customer ID in checkOutData
+      this.checkOutData.customerId = booking.customer_id;
+
+      // Show the check-out form
+      this.showCheckOutForm = true;
+
+      // Optional: Scroll to the check-out form if needed
+      this.$nextTick(() => {
+        const formElement = document.querySelector(".dialog-overlay");
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    },
+    formatTime(minutes) {
+      if (!minutes) return "N/A";
+
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+
+      if (hours > 0 && mins > 0) {
+        return `${hours}h ${mins} mins`;
+      } else if (hours > 0) {
+        return `${hours}h`;
+      } else {
+        return `${mins} mins`;
+      }
+    },
     async loadRooms() {
       try {
         const response = await axios.get("/api/rooms");
@@ -349,12 +400,34 @@ export default {
         toastr.success("Customer checked-in successfully!");
       } catch (error) {
         console.error("Error checking in:", error);
-        toastr.error("Failed to check in. Please try again.");
+
+        // Check if there's a response from the server
+        if (
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
+          const message = error.response.data.message;
+
+          // Handle specific server messages
+          if (message === "Room is currently occupied") {
+            toastr.error("Room is busy right now. Please choose another room.");
+          } else if (message === "Customer is already checked in") {
+            toastr.warning("This customer is already checked in.");
+          } else if (message === "Customer not found") {
+            toastr.error("Customer not found. Please check the ID.");
+          } else if (message === "Room not found") {
+            toastr.error("The selected room does not exist.");
+          } else {
+            toastr.error(message);
+          }
+        } else {
+          toastr.error("Failed to check in. Please try again.");
+        }
       }
     },
     async handleCheckOut() {
       try {
-        // Find the ACTIVE booking for this customer (status 'active' and no check_out_time)
         const activeBooking = this.bookings.find(
           (b) =>
             b.customer_id === this.checkOutData.customerId &&
@@ -375,34 +448,43 @@ export default {
 
         const payload = {
           kitchen_items: kitchenItemsWithQuantities,
+          discount_percentage: this.checkOutData.discountPercentage || null, // Add discount to payload
         };
 
-        // Use the active booking's ID for check-out
         const response = await axios.put(
           `/api/bookings/check-out/${activeBooking.id}`,
           payload
         );
 
-        // Update the local booking data
+        // Update local data
         activeBooking.check_out_time = response.data.check_out_time;
         activeBooking.total_time = response.data.total_time;
         activeBooking.total_cost = response.data.total_cost;
         activeBooking.status = "checked_out";
 
-        this.showCheckOutForm = false;
-        this.resetCheckOutData();
-        this.loadBookings(); // Refresh to ensure all data is current
+        // Show success message with discount info if applied
+        const hours = Math.floor(response.data.total_time / 60);
+        const minutes = response.data.total_time % 60;
+        const formattedTime = `${hours}hr ${minutes}min`;
+        const discountMessage = this.checkOutData.discountPercentage
+          ? `<p>Discount Applied: <strong>${this.checkOutData.discountPercentage}%</strong></p>`
+          : "";
 
         Swal.fire({
           title: "Check-Out Successful!",
           html: `
         <p>Customer: <strong>${response.data.customer_name}</strong></p>
-        <p>Total Time: <strong>${response.data.total_time} minutes</strong></p>
+        <p>Total Time: <strong>${formattedTime}</strong></p>
+        ${discountMessage}
         <p>Total Cost: <strong>${response.data.total_cost} EGP</strong></p>
       `,
           icon: "success",
           confirmButtonText: "OK",
         });
+
+        this.showCheckOutForm = false;
+        this.resetCheckOutData();
+        this.loadBookings();
       } catch (error) {
         console.error("Error checking out:", error);
         if (error.response && error.response.status === 404) {
@@ -423,6 +505,7 @@ export default {
       this.checkOutData = {
         customerId: "",
         kitchenItems: [],
+        discountPercentage: null,
       };
       this.kitchenItems.forEach((item) => {
         item.quantity = 1;
@@ -702,5 +785,19 @@ export default {
 .quantity-input {
   width: 60px;
   margin-top: 5px;
+}
+.btn-checkout {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+  transition: background-color 0.3s;
+}
+
+.btn-checkout:hover {
+  background-color: #45a049;
 }
 </style>

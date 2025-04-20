@@ -2,7 +2,11 @@
   <div class="rooms-container">
     <!-- Header with Add New Button -->
     <div class="header">
-      <button class="btn-primary" @click="showAddRoomForm = true">
+      <button
+        class="btn-primary"
+        @click="showAddRoomForm = true"
+        v-if="['ceo', 'branch manager'].includes($store.state.role)"
+      >
         Add New Room
       </button>
       <span class="room-count">No. Rooms: {{ rooms.length }}</span>
@@ -28,7 +32,9 @@
           <th>Capacity</th>
           <th>Price</th>
           <th>Price Type</th>
-          <th>Actions</th>
+          <th v-if="['ceo', 'branch manager'].includes($store.state.role)">
+            Actions
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -41,9 +47,13 @@
           <td>{{ room.capacity }}</td>
           <td>{{ room.price }}</td>
           <td>{{ room.price_type === "hour" ? "Per Hour" : "Per Day" }}</td>
-          <td>
+          <td v-if="['ceo', 'branch manager'].includes($store.state.role)">
             <button class="btn-edit" @click="editRoom(room)">Edit</button>
-            <button class="btn-delete" @click="confirmDelete(room)">
+            <button
+              class="btn-delete"
+              @click="confirmDelete(room)"
+              v-if="['ceo', 'branch manager'].includes($store.state.role)"
+            >
               Delete
             </button>
           </td>

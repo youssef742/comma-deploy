@@ -9,7 +9,12 @@ router.get("/", async (req, res) => {
       SELECT bookings.*, customers.name AS customer_name 
       FROM bookings 
       LEFT JOIN customers ON bookings.customer_id = customers.id
-      ORDER BY bookings.check_in_time DESC
+      ORDER BY 
+        CASE 
+          WHEN bookings.status = 'active' THEN 1
+          ELSE 2
+        END,
+        bookings.check_in_time DESC
     `);
     res.json(bookings);
   } catch (err) {
@@ -65,7 +70,6 @@ router.post("/check-in", async (req, res) => {
       "SELECT * FROM bookings WHERE customer_id = ? AND status = 'active' AND check_out_time IS NULL",
       [customer_id]
     );
-
     if (activeBooking.length > 0) {
       console.log("Customer already checked in:", customer_id);
       return res.status(400).json({
@@ -84,18 +88,28 @@ router.post("/check-in", async (req, res) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    // 4. Start Transaction
+    // 4. Check if the room is already occupied
+    const [roomOccupied] = await db.query(
+      "SELECT * FROM bookings WHERE room = ? AND status = 'active' AND check_out_time IS NULL",
+      [room]
+    );
+    if (roomOccupied.length > 0) {
+      console.log("Room is currently occupied:", room);
+      return res.status(400).json({ message: "Room is currently occupied" });
+    }
+
+    // 5. Start Transaction
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-      // 5. Insert into bookings
+      // 6. Insert into bookings
       const [result] = await connection.query(
         "INSERT INTO bookings (customer_id, room, check_in_time, status, customer_name) VALUES (?, ?, NOW(), 'active', ?)",
         [customer_id, room, customer[0].name]
       );
 
-      // 6. Insert into active_customers
+      // 7. Insert into active_customers
       const [activeCustomerInsert] = await connection.query(
         "INSERT INTO active_customers (customer_id, name, phone, check_in_time, room) VALUES (?, ?, ?, NOW(), ?)",
         [customer_id, customer[0].name, customer[0].phone, room]
@@ -105,14 +119,15 @@ router.post("/check-in", async (req, res) => {
         throw new Error("Failed to insert into active_customers");
       }
 
-      // 7. Commit Transaction
+      // 8. Commit Transaction
       await connection.commit();
       connection.release();
 
-      // 8. Fetch and return the updated active customers list
+      // 9. Fetch and return the updated active customers list
       const [activeCustomers] = await db.query(
         "SELECT * FROM active_customers"
       );
+
       console.log("Check-in successful for customer ID:", customer_id);
       res.status(201).json({
         message: "Check-in successful",
@@ -136,7 +151,7 @@ router.post("/check-in", async (req, res) => {
 // Check-out a customer
 router.put("/check-out/:id", async (req, res) => {
   const { id } = req.params;
-  const { kitchen_items } = req.body;
+  const { kitchen_items, discount_percentage } = req.body; // Add discount_percentage to request body
   console.log("Received check-out request for booking ID:", id);
 
   try {
@@ -156,33 +171,73 @@ router.put("/check-out/:id", async (req, res) => {
       });
     }
 
-    // 2. Calculate time duration
+    // 2. Validate discount percentage (0-100)
+    const discount = discount_percentage
+      ? Math.min(Math.max(parseFloat(discount_percentage), 0), 100)
+      : 0;
+
+    if (isNaN(discount)) {
+      return res.status(400).json({
+        message: "Invalid discount percentage value",
+      });
+    }
+
+    // 3. Calculate time duration
     const checkInTime = new Date(booking[0].check_in_time);
     const checkOutTime = new Date();
     const totalTimeMinutes = Math.round(
       (checkOutTime - checkInTime) / (1000 * 60)
     );
-    const totalHours = totalTimeMinutes / 60;
-    const totalDays = totalHours / 24;
 
-    // 3. Calculate room cost based on pricing type (hour/day)
+    // 4. Calculate room cost based on pricing type (hour/day)
     let roomCost = 0;
     const roomPrice = parseFloat(booking[0].price);
     const priceType = booking[0].price_type;
 
     if (priceType === "hour") {
-      // Minimum 1 hour charge, then bill by actual hours
-      const billedHours = Math.max(totalHours, 1);
-      roomCost = roomPrice * billedHours;
+      // Minimum 1 hour charge
+      const minCharge = 1;
+
+      // Calculate full hours and remaining minutes
+      const fullHours = Math.floor(totalTimeMinutes / 60);
+      const remainingMinutes = totalTimeMinutes % 60;
+
+      // Round up to nearest 30-minute increment
+      let billedHalfHours = fullHours * 2; // Convert full hours to half-hour units
+      if (remainingMinutes > 0) {
+        billedHalfHours += 1; // Any minutes beyond full hours count as an additional half hour
+      }
+
+      // Apply minimum charge (2 half-hours = 1 hour)
+      billedHalfHours = Math.max(billedHalfHours, 2);
+
+      // Calculate cost (each half hour is roomPrice/2)
+      roomCost = (roomPrice / 2) * billedHalfHours;
     } else if (priceType === "day") {
       // Minimum 1 day charge, then bill by actual days
+      const totalHours = totalTimeMinutes / 60;
+      const totalDays = totalHours / 24;
       const billedDays = Math.max(totalDays, 1);
       roomCost = roomPrice * billedDays;
     }
 
-    // 4. Calculate kitchen items cost
+    // 5. Calculate kitchen items cost
     const itemsCost = await calculateKitchenItemsCost(kitchen_items);
-    const totalCost = roomCost + itemsCost;
+
+    // 6. Calculate total cost before discount
+    let totalCost = roomCost + itemsCost;
+
+    // 7. Apply discount if specified
+    if (discount > 0) {
+      const discountAmount = totalCost * (discount / 100);
+      totalCost -= discountAmount;
+
+      console.log("Discount applied:", {
+        percentage: discount,
+        amount: discountAmount,
+        finalTotal: totalCost,
+      });
+    }
 
     console.log("Pricing details:", {
       room: booking[0].room,
@@ -191,21 +246,28 @@ router.put("/check-out/:id", async (req, res) => {
       totalTimeMinutes: totalTimeMinutes,
       roomCost: roomCost,
       itemsCost: itemsCost,
+      discountPercentage: discount,
       totalCost: totalCost,
     });
 
-    // 5. Update the booking
+    // 8. Update the booking with discount information
     await db.query(
-      "UPDATE bookings SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
-      [totalTimeMinutes, totalCost, id]
+      `UPDATE bookings 
+       SET check_out_time = NOW(), 
+           total_time = ?, 
+           total_cost = ?, 
+           status = 'checked_out',
+           discount_percentage = ?
+       WHERE id = ?`,
+      [totalTimeMinutes, totalCost, discount, id]
     );
 
-    // 6. Remove from active_customers table
+    // 9. Remove from active_customers table
     await db.query("DELETE FROM active_customers WHERE customer_id = ?", [
       booking[0].customer_id,
     ]);
 
-    // 7. Return updated booking details
+    // 10. Return updated booking details with discount info
     const [updatedBooking] = await db.query(
       `SELECT bookings.*, customers.name AS customer_name 
        FROM bookings 
@@ -217,9 +279,16 @@ router.put("/check-out/:id", async (req, res) => {
     console.log("Check-out successful for booking ID:", id);
     res.json(updatedBooking[0]);
   } catch (err) {
-    console.error("Error during check-out:", err.message);
-    console.error("Error stack trace:", err.stack);
-    res.status(500).json({ message: err.message });
+    console.error("Error during check-out:", {
+      message: err.message,
+      stack: err.stack,
+      bookingId: id,
+      requestBody: req.body,
+    });
+    res.status(500).json({
+      message: "Internal server error",
+      details: err.message,
+    });
   }
 });
 // Calculate the cost of kitchen items
