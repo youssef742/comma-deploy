@@ -41,6 +41,12 @@
           <th style="width: 100px">Total Time</th>
           <th style="width: 100px">Room</th>
           <th style="width: 100px">Status</th>
+          <th
+            style="width: 100px"
+            v-if="['ceo', 'branch manager'].includes($store.state.role)"
+          >
+            cancellation reasons
+          </th>
           <th style="width: 100px">Actions</th>
         </tr>
       </thead>
@@ -73,6 +79,9 @@
                 ? "Cancelled"
                 : "Active"
             }}
+          </td>
+          <td v-if="['ceo', 'branch manager'].includes($store.state.role)">
+            {{ booking.cancellation_reason }}
           </td>
           <td>
             <button

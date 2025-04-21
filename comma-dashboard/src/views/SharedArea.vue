@@ -38,6 +38,9 @@
           <th>Total Cost</th>
           <th>Total Time</th>
           <th>Status</th>
+          <th v-if="['ceo', 'branch manager'].includes($store.state.role)">
+            cancellation reasons
+          </th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -63,6 +66,9 @@
             {{ checkIn.total_time ? formatTime(checkIn.total_time) : "N/A" }}
           </td>
           <td>{{ checkIn.status }}</td>
+          <td v-if="['ceo', 'branch manager'].includes($store.state.role)">
+            {{ checkIn.cancellation_reason }}
+          </td>
           <td>
             <button
               class="btn-checkout"

@@ -180,7 +180,7 @@
               </option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" v-if="newCustomer.autoCheckIn">
             <label for="reservation">
               <Icon icon="mdi:reservation" width="24px" height="24px" />
               Reservation:
@@ -194,7 +194,10 @@
           <!-- Shared Area Type Dropdown (Conditional) -->
           <div
             class="form-group"
-            v-if="newCustomer.reservation === 'Shared Area'"
+            v-if="
+              newCustomer.reservation === 'Shared Area' &&
+              newCustomer.autoCheckIn
+            "
           >
             <label for="sharedAreaType">Shared Area Type:</label>
             <select
@@ -211,7 +214,10 @@
           <!-- Room Selection Dropdown (Conditional) -->
           <div
             class="form-group"
-            v-if="newCustomer.reservation === 'Private Room'"
+            v-if="
+              newCustomer.reservation === 'Private Room' &&
+              newCustomer.autoCheckIn
+            "
           >
             <label for="room">Room:</label>
             <select v-model="newCustomer.room" id="room" required>
@@ -220,7 +226,20 @@
               </option>
             </select>
           </div>
-
+          <div class="form-group" style="margin-top: 20px">
+            <label class="checkbox-container">
+              <input
+                type="checkbox"
+                v-model="newCustomer.autoCheckIn"
+                checked
+                class="checkbox-input"
+              />
+              <span class="checkmark"></span>
+              <span class="checkbox-label"
+                >Check in this customer immediately</span
+              >
+            </label>
+          </div>
           <div class="form-actions">
             <button type="button" @click="showAddCustomerForm = false">
               Cancel
@@ -402,6 +421,7 @@ export default {
         reservation: "Shared Area", // Add this field
         sharedAreaType: "VIP", // Add this field
         room: "",
+        autoCheckIn: true,
       },
       editCustomerData: {
         id: "",
@@ -522,7 +542,7 @@ export default {
         this.editCustomerData.email &&
         !this.validateEmail(this.editCustomerData.email)
       ) {
-        alert("Please use a valid email address");
+        alert("Please use a email address");
       }
     },
     async fetchRooms() {
@@ -615,41 +635,40 @@ export default {
         const customerResponse = await axios.post("/api/customers", payload);
 
         // Try to check in the customer (separate try-catch to handle check-in failures)
-        try {
-          let roomName = null;
-          if (this.newCustomer.reservation === "Private Room") {
-            const selectedRoom = this.rooms.find(
-              (room) => room.id === this.newCustomer.room
-            );
-            if (!selectedRoom) {
-              throw new Error("Selected room not found");
+        if (this.newCustomer.autoCheckIn) {
+          try {
+            let roomName = null;
+            if (this.newCustomer.reservation === "Private Room") {
+              const selectedRoom = this.rooms.find(
+                (room) => room.id === this.newCustomer.room
+              );
+              if (!selectedRoom) {
+                throw new Error("Selected room not found");
+              }
+              roomName = selectedRoom.name;
             }
-            roomName = selectedRoom.name;
-          }
 
-          const checkInPayload = {
-            customer_id: customerResponse.data.id,
-            type:
+            const checkInPayload = {
+              customer_id: customerResponse.data.id,
+              type:
+                this.newCustomer.reservation === "Shared Area"
+                  ? this.newCustomer.sharedAreaType
+                  : "Private Room",
+              room: roomName,
+            };
+
+            const endpoint =
               this.newCustomer.reservation === "Shared Area"
-                ? this.newCustomer.sharedAreaType
-                : "Private Room",
-            room: roomName,
-          };
+                ? "/api/shared-area/check-in"
+                : "/api/bookings/check-in";
 
-          const endpoint =
-            this.newCustomer.reservation === "Shared Area"
-              ? "/api/shared-area/check-in"
-              : "/api/bookings/check-in";
-
-          await axios.post(endpoint, checkInPayload);
-        } catch (checkInError) {
-          console.warn(
-            "Check-in failed but customer was created:",
-            checkInError
-          );
-          toastr.warning(
-            "Customer created but check-in failed. Please check them in manually."
-          );
+            await axios.post(endpoint, checkInPayload);
+          } catch (checkInError) {
+            console.warn("Check-in failed:", checkInError);
+            toastr.warning(
+              "Customer created but check-in failed. Please check them in manually."
+            );
+          }
         }
 
         // Update the local customers list
@@ -725,7 +744,7 @@ export default {
       }
 
       if (!this.validateEmail(this.editCustomerData.email)) {
-        alert("Please use a valid email address");
+        alert("Please use a email address");
         return;
       }
       try {
@@ -1098,5 +1117,73 @@ export default {
 .pagination span {
   font-size: 14px;
   color: black;
+}
+.checkbox-container {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  color: #333;
+  font-size: 14px;
+  padding-left: 30px; /* Space for custom checkbox */
+  margin: 0 auto; /* Center container if needed */
+}
+
+/* The actual checkbox input (hidden) */
+.checkbox-input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+  left: 0; /* Position over the custom checkbox */
+}
+
+/* Custom checkbox */
+.checkmark {
+  position: absolute;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background-color: #fff;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Checkmark symbol */
+.checkmark:after {
+  content: "";
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.checkbox-input:checked ~ .checkmark:after {
+  opacity: 1;
+}
+
+/* Hover and checked states */
+.checkbox-container:hover .checkbox-input ~ .checkmark {
+  border-color: #3498db;
+}
+
+.checkbox-input:checked ~ .checkmark {
+  background-color: #3498db;
+  border-color: #3498db;
+}
+
+/* Label styling */
+.checkbox-label {
+  margin-left: 8px; /* Space between checkbox and label */
+  line-height: 1;
 }
 </style>
