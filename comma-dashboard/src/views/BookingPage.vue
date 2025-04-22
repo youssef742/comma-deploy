@@ -274,7 +274,7 @@ export default {
       },
       customerError: "",
       currentPage: 1,
-      itemsPerPage: 10,
+      itemsPerPage: 150,
       cancellationReason: "",
     };
   },
