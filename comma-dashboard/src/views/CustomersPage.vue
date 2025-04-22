@@ -440,7 +440,7 @@ export default {
         isActive: 1,
       },
       currentPage: 1, // Current page number
-      itemsPerPage: 10,
+      itemsPerPage: 150,
       branches: [], // Store fetched branches here
       selectedBranch: "", // Number of items per page
     };
