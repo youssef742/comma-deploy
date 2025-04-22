@@ -20,6 +20,11 @@
     <!-- Search Fields -->
     <div class="search-fields">
       <input
+        v-model="search.name"
+        placeholder="Search by Name"
+        class="search-input"
+      />
+      <input
         v-model="search.id"
         placeholder="Search by ID"
         class="search-input"
@@ -41,10 +46,10 @@
       <thead>
         <tr>
           <th>ID</th>
+          <th>Email</th>
           <th>Name</th>
           <th>Phone Number</th>
           <th>National ID</th>
-          <th>Email</th>
           <th>No. Warnings</th>
           <th>Blacklisted</th>
           <th>Actions</th>
@@ -53,10 +58,10 @@
       <tbody>
         <tr v-for="customer in paginatedCustomers" :key="customer.id">
           <td>{{ customer.id }}</td>
+          <td>{{ customer.email }}</td>
           <td>{{ customer.name }}</td>
           <td>{{ customer.phone }}</td>
           <td>{{ customer.nationalId }}</td>
-          <td>{{ customer.email }}</td>
           <td>{{ customer.warnings }}</td>
           <td>
             <span
@@ -390,6 +395,7 @@ import axios from "axios";
 import { Icon } from "@iconify/vue";
 import toastr from "toastr";
 import "toastr/build/toastr.min.css";
+import Swal from "sweetalert2";
 
 // import * as XLSX from "xlsx"; // For Excel file processing
 
@@ -402,6 +408,7 @@ export default {
         id: "",
         phone: "",
         nationalId: "",
+        name: "",
       },
       showAddCustomerForm: false,
       showEditCustomerForm: false, // Controls the edit dialog visibility
@@ -433,7 +440,7 @@ export default {
         isActive: 1,
       },
       currentPage: 1, // Current page number
-      itemsPerPage: 150,
+      itemsPerPage: 10,
       branches: [], // Store fetched branches here
       selectedBranch: "", // Number of items per page
     };
@@ -446,6 +453,9 @@ export default {
     filteredCustomers() {
       return this.customers.filter((customer) => {
         return (
+          (customer.name?.toLowerCase() || "").includes(
+            this.search.name.toLowerCase()
+          ) &&
           (customer.id?.toString() || "").includes(this.search.id) &&
           (customer.phone?.toString() || "").includes(this.search.phone) &&
           (customer.nationalId?.toString() || "").includes(
@@ -686,7 +696,16 @@ export default {
         // Close the form and reset data
         this.showAddCustomerForm = false;
         this.resetNewCustomer();
-        toastr.success("Customer added successfully and is being checked in!");
+        // toastr.success("Customer added successfully and is being checked in!");
+        Swal.fire({
+          title: "Customer Added Successfully!",
+          html: `
+        <p>Customer: <strong>${customerResponse.data.name}</strong></p>
+        <p>ID: <strong>${customerResponse.data.id}</strong></p>
+      `,
+          icon: "success",
+          confirmButtonText: "OK",
+        });
       } catch (error) {
         console.error("Error adding customer:", error);
 

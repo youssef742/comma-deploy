@@ -209,7 +209,7 @@ router.put("/check-out/:id", async (req, res) => {
       }
 
       // Apply minimum charge (2 half-hours = 1 hour)
-      billedHalfHours = Math.max(billedHalfHours, 2);
+      billedHalfHours = Math.max(billedHalfHours, 1);
 
       // Calculate cost (each half hour is roomPrice/2)
       roomCost = (roomPrice / 2) * billedHalfHours;
