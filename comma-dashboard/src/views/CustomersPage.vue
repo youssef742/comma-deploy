@@ -46,10 +46,10 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Email</th>
           <th>Name</th>
           <th>Phone Number</th>
           <th>National ID</th>
+          <th>Email</th>
           <th>No. Warnings</th>
           <th>Blacklisted</th>
           <th>Actions</th>
@@ -58,10 +58,11 @@
       <tbody>
         <tr v-for="customer in paginatedCustomers" :key="customer.id">
           <td>{{ customer.id }}</td>
-          <td>{{ customer.email }}</td>
+
           <td>{{ customer.name }}</td>
           <td>{{ customer.phone }}</td>
           <td>{{ customer.nationalId }}</td>
+          <td>{{ customer.email }}</td>
           <td>{{ customer.warnings }}</td>
           <td>
             <span
