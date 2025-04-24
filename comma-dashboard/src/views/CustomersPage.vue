@@ -45,14 +45,14 @@
     <table class="custom-table">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Phone Number</th>
-          <th>National ID</th>
-          <th>Email</th>
-          <th>No. Warnings</th>
-          <th>Blacklisted</th>
-          <th>Actions</th>
+          <th style="text-align: center">ID</th>
+          <th style="text-align: center">Name</th>
+          <th style="text-align: center">Phone Number</th>
+          <th style="text-align: center">National ID</th>
+          <th style="text-align: center">Email</th>
+          <th style="text-align: center">No. Warnings</th>
+          <th style="text-align: center">Blacklisted</th>
+          <th style="text-align: center">Actions</th>
         </tr>
       </thead>
       <tbody>
