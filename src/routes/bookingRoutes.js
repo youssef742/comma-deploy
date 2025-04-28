@@ -9,14 +9,14 @@ router.get("/", async (req, res) => {
       SELECT bookings.*, customers.name AS customer_name 
       FROM bookings 
       LEFT JOIN customers ON bookings.customer_id = customers.id
-     
+          ORDER BY
+     CASE
+       WHEN bookings.status = 'active' THEN 1
+       ELSE 2
+     END,
+     bookings.check_in_time DESC
     `);
-    // ORDER BY
-    // CASE
-    //   WHEN bookings.status = 'active' THEN 1
-    //   ELSE 2
-    // END,
-    // bookings.check_in_time DESC
+
     res.json(bookings);
   } catch (err) {
     console.error("Error fetching bookings:", err.message);

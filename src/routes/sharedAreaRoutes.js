@@ -45,14 +45,14 @@ router.get("/shared-area-checkins/:type?", async (req, res) => {
       query += ` WHERE shared_area_checkins.type = ?`;
       params.push(type);
     }
-    // query += `
-    //   ORDER BY
-    //     CASE
-    //       WHEN shared_area_checkins.status = 'active' THEN 1
-    //       ELSE 2
-    //     END,
-    //     shared_area_checkins.check_in_time DESC
-    // `;
+    query += `
+      ORDER BY
+        CASE
+          WHEN shared_area_checkins.status = 'active' THEN 1
+           ELSE 2
+        END,
+        shared_area_checkins.check_in_time DESC
+    `;
     console.log("Executing query:", query); // Debugging log
     console.log("Query parameters:", params); // Debugging log
 
@@ -76,15 +76,15 @@ router.get("/", async (req, res) => {
           customers.name AS name 
         FROM shared_area_checkins 
         LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id
-        
+        ORDER BY
+    CASE
+    WHEN shared_area_checkins.status = 'active' THEN 1
+    ELSE 2
+    END,
+    shared_area_checkins.check_in_time DESC
         
       `);
-    // ORDER BY
-    // CASE
-    //   WHEN shared_area_checkins.status = 'active' THEN 1
-    //   ELSE 2
-    // END,
-    // shared_area_checkins.check_in_time DESC
+
     console.log("All check-ins fetched successfully:", checkIns); // Debugging log
     res.json(checkIns);
   } catch (err) {
