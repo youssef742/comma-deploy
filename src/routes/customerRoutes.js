@@ -81,19 +81,14 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Generate customer ID
-    const prefix = branch.substring(0, 3).toUpperCase();
-    const [lastCustomer] = await db.query(
-      "SELECT id FROM customers WHERE id LIKE ? ORDER BY id DESC LIMIT 1",
-      [`${prefix}-%`]
+    // Generate customer ID - MODIFIED SECTION
+    const [maxIdResult] = await db.query(
+      "SELECT MAX(CAST(SUBSTRING(id, LOCATE('-', id) + 1 AS UNSIGNED)) as max_num FROM customers"
     );
 
-    const newCustomerId =
-      lastCustomer.length > 0
-        ? `${prefix}-${String(
-            parseInt(lastCustomer[0].id.split("-")[1], 10) + 1
-          ).padStart(2, "0")}`
-        : `${prefix}-01`;
+    const prefix = branch.substring(0, 3).toUpperCase();
+    const nextNum = maxIdResult[0].max_num ? maxIdResult[0].max_num + 1 : 1;
+    const newCustomerId = `${prefix}-${String(nextNum).padStart(2, "0")}`;
 
     // Insert new customer
     const [result] = await db.query(
@@ -138,7 +133,6 @@ router.post("/", async (req, res) => {
     });
   }
 });
-
 // ------------------------------
 // UPDATE A CUSTOMER
 // ------------------------------
