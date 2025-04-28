@@ -13,7 +13,12 @@ const upload = multer({ dest: "uploads/" }); // Configure multer for file upload
 router.get("/", async (req, res) => {
   try {
     // Fetch all customers from the database
-    const [customers] = await db.query("SELECT * FROM customers");
+    const [customers] = await db.query(`
+      SELECT * FROM customers 
+      ORDER BY 
+        SUBSTRING(id, 1, LOCATE('-', id)), 
+        CAST(SUBSTRING(id, LOCATE('-', id) + 1) AS UNSIGNED)
+    `);
     res.json(customers);
   } catch (err) {
     console.error(err);
