@@ -38,9 +38,7 @@
           <th>Total Cost</th>
           <th>Total Time</th>
           <th>Status</th>
-          <th v-if="['ceo', 'branch manager'].includes($store.state.role)">
-            cancellation reasons
-          </th>
+          <th>cancellation reasons</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -119,7 +117,12 @@
           </div>
           <div class="form-group">
             <label for="type">Shared Area Type:</label>
-            <select v-model="checkInData.type" id="type" required>
+            <select
+              v-model="checkInData.type"
+              id="type"
+              required
+              :disabled="$route.params.type && $route.params.type !== 'All'"
+            >
               <option value="VIP">VIP Area</option>
               <option value="Quiet Area">Quiet Area</option>
               <option value="General Area">General Area</option>
@@ -278,6 +281,23 @@ export default {
   async created() {
     await this.loadKitchenItems();
     await this.loadCheckIns();
+    if (this.$route.params.type && this.$route.params.type !== "All") {
+      this.checkInData.type = this.$route.params.type;
+    } else {
+      this.checkInData.type = "General Area"; // Default for All tab
+    }
+  },
+  watch: {
+    "$route.params.type": {
+      immediate: true,
+      handler(newType) {
+        if (newType && newType !== "All") {
+          this.checkInData.type = newType;
+        } else {
+          this.checkInData.type = "General Area"; // Default for All tab
+        }
+      },
+    },
   },
   methods: {
     formatTime(minutes) {
@@ -590,6 +610,7 @@ export default {
   font-weight: bold;
   color: black;
   padding: 12px;
+  text-align: center;
 }
 
 .custom-table tr:nth-child(even) {
@@ -759,5 +780,10 @@ export default {
 
 .btn-checkout:hover {
   background-color: #45a049;
+}
+select:disabled {
+  opacity: 0.8;
+  background-color: #f5f5f5;
+  cursor: not-allowed;
 }
 </style>
