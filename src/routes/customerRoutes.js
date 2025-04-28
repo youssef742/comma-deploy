@@ -81,7 +81,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Generate customer ID - MODIFIED SECTION
+    // Generate customer ID
     const [maxIdResult] = await db.query(
       "SELECT MAX(CAST(SUBSTRING(id, LOCATE('-', id) + 1 AS UNSIGNED)) as max_num FROM customers"
     );
@@ -133,6 +133,7 @@ router.post("/", async (req, res) => {
     });
   }
 });
+
 // ------------------------------
 // UPDATE A CUSTOMER
 // ------------------------------
