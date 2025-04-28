@@ -9,13 +9,14 @@ router.get("/", async (req, res) => {
       SELECT bookings.*, customers.name AS customer_name 
       FROM bookings 
       LEFT JOIN customers ON bookings.customer_id = customers.id
-      ORDER BY 
-        CASE 
-          WHEN bookings.status = 'active' THEN 1
-          ELSE 2
-        END,
-        bookings.check_in_time DESC
+     
     `);
+    // ORDER BY
+    // CASE
+    //   WHEN bookings.status = 'active' THEN 1
+    //   ELSE 2
+    // END,
+    // bookings.check_in_time DESC
     res.json(bookings);
   } catch (err) {
     console.error("Error fetching bookings:", err.message);
@@ -261,7 +262,9 @@ router.put("/check-out/:id", async (req, res) => {
        WHERE id = ?`,
       [totalTimeMinutes, totalCost, discount, id]
     );
-
+    await db.query("UPDATE customers SET visits = visits + 1 WHERE id = ?", [
+      booking[0].customer_id,
+    ]);
     // 9. Remove from active_customers table
     await db.query("DELETE FROM active_customers WHERE customer_id = ?", [
       booking[0].customer_id,

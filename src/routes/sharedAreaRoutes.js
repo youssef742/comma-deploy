@@ -45,14 +45,14 @@ router.get("/shared-area-checkins/:type?", async (req, res) => {
       query += ` WHERE shared_area_checkins.type = ?`;
       params.push(type);
     }
-    query += `
-      ORDER BY 
-        CASE 
-          WHEN shared_area_checkins.status = 'active' THEN 1
-          ELSE 2
-        END,
-        shared_area_checkins.check_in_time DESC
-    `;
+    // query += `
+    //   ORDER BY
+    //     CASE
+    //       WHEN shared_area_checkins.status = 'active' THEN 1
+    //       ELSE 2
+    //     END,
+    //     shared_area_checkins.check_in_time DESC
+    // `;
     console.log("Executing query:", query); // Debugging log
     console.log("Query parameters:", params); // Debugging log
 
@@ -76,14 +76,15 @@ router.get("/", async (req, res) => {
           customers.name AS name 
         FROM shared_area_checkins 
         LEFT JOIN customers ON shared_area_checkins.customer_id = customers.id
-        ORDER BY 
-        CASE 
-          WHEN shared_area_checkins.status = 'active' THEN 1
-          ELSE 2
-        END,
-        shared_area_checkins.check_in_time DESC
+        
         
       `);
+    // ORDER BY
+    // CASE
+    //   WHEN shared_area_checkins.status = 'active' THEN 1
+    //   ELSE 2
+    // END,
+    // shared_area_checkins.check_in_time DESC
     console.log("All check-ins fetched successfully:", checkIns); // Debugging log
     res.json(checkIns);
   } catch (err) {
@@ -258,6 +259,10 @@ router.put("/check-out/:id", async (req, res) => {
       "UPDATE shared_area_checkins SET check_out_time = NOW(), total_time = ?, total_cost = ?, status = 'checked_out' WHERE id = ?",
       [totalTimeMinutes, totalCost, id] // Store actual minutes, but cost uses min 1 hour + daily rate logic
     );
+
+    await db.query("UPDATE customers SET visits = visits + 1 WHERE id = ?", [
+      checkIn[0].customer_id,
+    ]);
 
     // 4. Remove from active_shared_area_customers table
     await db.query(

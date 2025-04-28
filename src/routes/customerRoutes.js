@@ -13,12 +13,7 @@ const upload = multer({ dest: "uploads/" }); // Configure multer for file upload
 router.get("/", async (req, res) => {
   try {
     // Fetch all customers from the database
-    const [customers] = await db.query(`
-      SELECT * FROM customers 
-      ORDER BY 
-        SUBSTRING(id, 1, LOCATE('-', id)), 
-        CAST(SUBSTRING(id, LOCATE('-', id) + 1) AS UNSIGNED)
-    `);
+    const [customers] = await db.query("SELECT * FROM customers");
     res.json(customers);
   } catch (err) {
     console.error(err);
@@ -61,7 +56,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   console.log("Request Body:", req.body);
   try {
-    const { name, email, phone, national_id, branch } = req.body;
+    const { name, email, phone, national_id, branch, comments } = req.body;
 
     // Validate required fields
     if (!branch) {
@@ -81,21 +76,23 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Generate customer ID - FIXED VERSION
+    // Generate customer ID
     const prefix = branch.substring(0, 3).toUpperCase();
-    const [maxIdResult] = await db.query(
-      `SELECT MAX(CAST(SUBSTRING(id, LOCATE('-', id) + 1) AS UNSIGNED)) as max_number 
-       FROM customers 
-       WHERE id LIKE ?`,
+    const [lastCustomer] = await db.query(
+      "SELECT id FROM customers WHERE id LIKE ? ORDER BY id DESC LIMIT 1",
       [`${prefix}-%`]
     );
 
-    const maxNumber = maxIdResult[0].max_number || 0;
-    const newCustomerId = `${prefix}-${String(maxNumber + 1).padStart(2, "0")}`;
+    const newCustomerId =
+      lastCustomer.length > 0
+        ? `${prefix}-${String(
+            parseInt(lastCustomer[0].id.split("-")[1], 10) + 1
+          ).padStart(2, "0")}`
+        : `${prefix}-01`;
 
     // Insert new customer
     const [result] = await db.query(
-      "INSERT INTO customers (id, name, email, phone, national_id, warnings, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO customers (id, name, email, phone, national_id, warnings, is_active, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [
         newCustomerId,
         name,
@@ -103,7 +100,8 @@ router.post("/", async (req, res) => {
         phone,
         national_id,
         req.body.warnings || 0,
-        req.body.is_active || true,
+        req.body.is_active !== undefined ? req.body.is_active : true,
+        comments || null,
       ]
     );
 
@@ -116,6 +114,7 @@ router.post("/", async (req, res) => {
       national_id: national_id,
       warnings: req.body.warnings || 0,
       is_active: req.body.is_active || true,
+      comments: comments || null,
     });
   } catch (err) {
     console.error("Database error:", err);
@@ -141,12 +140,13 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, national_id, warnings, is_active } = req.body;
+    const { name, email, phone, national_id, warnings, is_active, comments } =
+      req.body;
 
     // Update customer details in the database
     const [result] = await db.query(
-      "UPDATE customers SET name = ?, email = ?, phone = ?, national_id = ?, warnings = ?, is_active = ? WHERE id = ?",
-      [name, email, phone, national_id, warnings, is_active, id]
+      "UPDATE customers SET name = ?, email = ?, phone = ?, national_id = ?, warnings = ?, is_active = ?, comments = ? WHERE id = ?",
+      [name, email, phone, national_id, warnings, is_active, comments, id] // correct order
     );
 
     // If no rows were affected, customer not found
@@ -227,13 +227,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       phone: row.Phone ? String(row.Phone) : null, // Convert to string if present
       national_id: row["National ID"] ? String(row["National ID"]) : null, // Convert to string if present
       warnings: row.Warnings || 0, // Default to 0 if missing
-      is_active: true, // Default to true since the column is not present in the Excel sheet
+      is_active: true,
+      comments: row.Comments || null, // Default to true since the column is not present in the Excel sheet
     }));
 
     // Insert customers into the database
     const query = `
-      INSERT INTO customers (id, name, email, phone, national_id, warnings, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO customers (id, name, email, phone, national_id, warnings, is_active, comments)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const insertedCustomers = [];
@@ -246,6 +247,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         customer.national_id,
         customer.warnings,
         customer.is_active,
+        customer.comments,
       ];
       const [result] = await db.query(query, values);
       insertedCustomers.push({ id: result.insertId, ...customer });

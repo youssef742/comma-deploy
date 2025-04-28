@@ -24,6 +24,7 @@
         v-model="search.customerId"
         placeholder="Search by Customer ID"
         class="search-input"
+        @input="search.customerId = $event.target.value.toUpperCase()"
       />
     </div>
 
@@ -52,10 +53,30 @@
           <td>{{ checkIn.customer_id }}</td>
           <td>{{ checkIn.customer_name }}</td>
           <td>
-            {{ formatDateTime(checkIn.check_in_time) || "Not Checked In" }}
+            <template v-if="checkIn.check_in_time">
+              <span class="date-time-container">
+                <span class="date-part"
+                  >{{ formatDateTime(checkIn.check_in_time).datePart }},</span
+                >
+                <span class="time-part">{{
+                  formatDateTime(checkIn.check_in_time).timePart
+                }}</span>
+              </span>
+            </template>
+            <span v-else>Not Checked In</span>
           </td>
           <td>
-            {{ formatDateTime(checkIn.check_out_time) || "Not Checked Out" }}
+            <template v-if="checkIn.check_out_time">
+              <span class="date-time-container">
+                <span class="date-part"
+                  >{{ formatDateTime(checkIn.check_out_time).datePart }},</span
+                >
+                <span class="time-part">{{
+                  formatDateTime(checkIn.check_out_time).timePart
+                }}</span>
+              </span>
+            </template>
+            <span v-else class="not_checked">Not Checked Out</span>
           </td>
           <td>
             {{ checkIn.total_cost ? `${checkIn.total_cost} EGP` : "N/A" }}
@@ -63,8 +84,18 @@
           <td>
             {{ checkIn.total_time ? formatTime(checkIn.total_time) : "N/A" }}
           </td>
-          <td>{{ checkIn.status }}</td>
-          <td v-if="['ceo', 'branch manager'].includes($store.state.role)">
+          <td>
+            <span :class="['status-tag', checkIn.status]">
+              {{
+                checkIn.status === "checked_out"
+                  ? "Checked Out"
+                  : checkIn.status === "cancelled"
+                  ? "Cancelled"
+                  : "Active"
+              }}
+            </span>
+          </td>
+          <td>
             {{ checkIn.cancellation_reason }}
           </td>
           <td>
@@ -106,10 +137,14 @@
           <div class="form-group">
             <label for="customerId">Customer ID:</label>
             <input
-              v-model="checkInData.customerId"
+              v-model.trim="checkInData.customerId"
               id="customerId"
               required
-              @input="validateCustomer"
+              @input="formatCustomerId"
+              autocomplete="off"
+              autocapitalize="characters"
+              autocorrect="off"
+              spellcheck="false"
             />
             <p v-if="customerError" class="error-message">
               {{ customerError }}
@@ -120,8 +155,8 @@
             <select
               v-model="checkInData.type"
               id="type"
-              required
               :disabled="$route.params.type && $route.params.type !== 'All'"
+              required
             >
               <option value="VIP">VIP Area</option>
               <option value="Quiet Area">Quiet Area</option>
@@ -300,6 +335,15 @@ export default {
     },
   },
   methods: {
+    formatCustomerId() {
+      // Remove all spaces and convert to uppercase
+      this.checkInData.customerId = this.checkInData.customerId
+        .replace(/\s+/g, "")
+        .toUpperCase();
+
+      // Trigger validation after formatting
+      this.validateCustomer();
+    },
     formatTime(minutes) {
       if (!minutes) return "N/A";
 
@@ -534,14 +578,20 @@ export default {
     formatDateTime(dateTime) {
       if (!dateTime) return null;
       const date = new Date(dateTime);
-      return date.toLocaleString("en-US", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
+
+      // Format date as "20 Apr"
+      const day = date.getDate().toString().padStart(2, "0");
+      const month = date.toLocaleString("default", { month: "short" });
+      const datePart = `${day} ${month}`;
+
+      // Format time as "10:56 AM"
+      const timePart = date.toLocaleString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
       });
+
+      return { datePart, timePart };
     },
   },
 };
@@ -610,7 +660,6 @@ export default {
   font-weight: bold;
   color: black;
   padding: 12px;
-  text-align: center;
 }
 
 .custom-table tr:nth-child(even) {
@@ -785,5 +834,56 @@ select:disabled {
   opacity: 0.8;
   background-color: #f5f5f5;
   cursor: not-allowed;
+}
+#customerId {
+  text-transform: uppercase;
+}
+.date-time-container {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.date-part {
+  font-size: 0.85em;
+  color: #666;
+}
+
+.time-part {
+  font-size: 1em;
+  font-weight: 500;
+}
+.not_checked {
+  color: rgb(173, 24, 24);
+}
+.not-checked {
+  color: #888;
+  font-style: italic;
+}
+
+.not-checked-out {
+  color: #ff4444;
+  font-weight: 500;
+}
+.status-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.status-tag.active {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-tag.checked_out {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-tag.cancelled {
+  background-color: #ffebee;
+  color: #c62828;
 }
 </style>

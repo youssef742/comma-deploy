@@ -20,24 +20,40 @@
     <!-- Search Fields -->
     <div class="search-fields">
       <input
-        v-model="search.name"
-        placeholder="Search by Name"
-        class="search-input"
-      />
-      <input
         v-model="search.id"
         placeholder="Search by ID"
         class="search-input"
+        id="id-search"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        @input="search.id = $event.target.value.toUpperCase()"
+      />
+      <input
+        v-model="search.name"
+        placeholder="Search by Name"
+        class="search-input"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
       />
       <input
         v-model="search.phone"
         placeholder="Search by Phone"
         class="search-input"
+        autocomplete="off"
+        autocapitalize="characters"
+        autocorrect="off"
+        spellcheck="false"
       />
       <input
         v-model="search.nationalId"
         placeholder="Search by National ID"
         class="search-input"
+        autocomplete="off"
+        autocapitalize="characters"
+        autocorrect="off"
+        spellcheck="false"
       />
     </div>
 
@@ -46,34 +62,29 @@
       <thead>
         <tr>
           <th style="text-align: center">ID</th>
+          <th style="text-align: center">Email</th>
           <th style="text-align: center">Name</th>
           <th style="text-align: center">Phone Number</th>
           <th style="text-align: center">National ID</th>
-          <th style="text-align: center">Email</th>
           <th style="text-align: center">No. Warnings</th>
-          <th style="text-align: center">Blacklisted</th>
+          <th style="text-align: center">Comments</th>
+          <th style="text-align: center">Visits</th>
           <th style="text-align: center">Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="customer in paginatedCustomers" :key="customer.id">
           <td>{{ customer.id }}</td>
-
+          <td>{{ customer.email }}</td>
           <td>{{ customer.name }}</td>
           <td>{{ customer.phone }}</td>
           <td>{{ customer.nationalId }}</td>
-          <td>{{ customer.email }}</td>
-          <td>{{ customer.warnings }}</td>
           <td>
-            <span
-              :class="[
-                'blacklist-tag',
-                customer.warnings >= 3 ? 'danger' : 'success',
-              ]"
-            >
-              {{ customer.blacklisted }}
-            </span>
+            <span v-if="customer.warnings < 3">{{ customer.warnings }}</span>
+            <span v-else class="blacklist-tag danger"> Blacklisted </span>
           </td>
+          <td id="comment">{{ customer.comments || "-" }}</td>
+          <td style="text-align: center">{{ customer.visits || 0 }}</td>
           <td>
             <button class="btn-edit" @click="editCustomer(customer)">
               Edit
@@ -122,7 +133,14 @@
               />
               Name:
             </label>
-            <input v-model="newCustomer.name" id="name" required />
+            <input
+              v-model="newCustomer.name"
+              id="name"
+              required
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+            />
           </div>
           <div class="form-group">
             <label for="email">
@@ -139,6 +157,9 @@
               type="email"
               required
               @blur="validateEmailOnBlur"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
             />
           </div>
           <div class="form-group">
@@ -154,6 +175,9 @@
               required
               title="Phone number must be exactly 11 digits (numbers only)"
               @input="formatPhone"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
             />
           </div>
           <div class="form-group">
@@ -169,7 +193,26 @@
               required
               title="National ID must be exactly 14 digits (numbers only)"
               @input="formatNationalId"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
             />
+          </div>
+          <div class="form-group">
+            <label for="comments">
+              <Icon
+                icon="mdi:comment-text-outline"
+                width="24px"
+                height="24px"
+              />
+              Comments:
+            </label>
+            <textarea
+              v-model="newCustomer.comments"
+              id="comments"
+              rows="3"
+              placeholder="Optional comments about the customer"
+            ></textarea>
           </div>
           <div class="form-group">
             <label for="branch">
@@ -273,7 +316,12 @@
               />
               Name:
             </label>
-            <input v-model="editCustomerData.name" id="edit-name" required />
+            <input
+              v-model="editCustomerData.name"
+              id="edit-name"
+              required
+              :readonly="isEditExpired && $store.state.role === 'receptionist'"
+            />
           </div>
           <div class="form-group">
             <label for="edit-email">
@@ -290,6 +338,7 @@
               type="email"
               required
               @blur="validateEditEmailOnBlur"
+              :readonly="isEditExpired && $store.state.role === 'receptionist'"
             />
           </div>
           <div class="form-group">
@@ -305,6 +354,7 @@
               required
               title="Phone number must be exactly 11 digits (numbers only)"
               @input="formatEditPhone"
+              :readonly="isEditExpired && $store.state.role === 'receptionist'"
             />
           </div>
           <div class="form-group">
@@ -320,7 +370,24 @@
               required
               title="National ID must be exactly 14 digits (numbers only)"
               @input="formatEditNationalId"
+              :readonly="isEditExpired && $store.state.role === 'receptionist'"
             />
+          </div>
+          <div class="form-group">
+            <label for="comments">
+              <Icon
+                icon="mdi:comment-text-outline"
+                width="24px"
+                height="24px"
+              />
+              Comments:
+            </label>
+            <textarea
+              v-model="editCustomerData.comments"
+              id="edit-comments"
+              rows="3"
+              placeholder="Optional comments about the customer"
+            ></textarea>
           </div>
           <div class="form-group">
             <label for="edit-warnings">
@@ -337,6 +404,11 @@
               type="number"
               required
             />
+          </div>
+          <div v-if="isEditExpired" class="edit-warning">
+            <Icon icon="mdi:clock-alert" />
+            Basic information can only be edited within 24 hours of creation.
+            Comments and warnings can still be modified.
           </div>
           <div class="form-actions">
             <button type="button" @click="showEditCustomerForm = false">
@@ -430,6 +502,7 @@ export default {
         sharedAreaType: "VIP", // Add this field
         room: "",
         autoCheckIn: true,
+        comments: "",
       },
       editCustomerData: {
         id: "",
@@ -439,9 +512,10 @@ export default {
         nationalId: "",
         warnings: 0,
         isActive: 1,
+        comments: "",
       },
       currentPage: 1, // Current page number
-      itemsPerPage: 150,
+      itemsPerPage: 200,
       branches: [], // Store fetched branches here
       selectedBranch: "", // Number of items per page
     };
@@ -450,6 +524,16 @@ export default {
     Icon,
   },
   computed: {
+    isEditExpired() {
+      // Skip time check if user is not a receptionist
+      if (this.$store.state.role !== "receptionist") return false;
+
+      if (!this.editCustomerData?.createdAt) return false;
+      const now = new Date();
+      const created = new Date(this.editCustomerData.createdAt);
+      const hoursDiff = (now - created) / (1000 * 60 * 60);
+      return hoursDiff > 24;
+    },
     // Filter customers based on search fields
     filteredCustomers() {
       return this.customers.filter((customer) => {
@@ -577,13 +661,28 @@ export default {
           email: customer.email,
           phone: customer.phone,
           nationalId: customer.national_id, // Map `national_id` to `nationalId`
+          national_id: customer.national_id, // Keep original field name for server operations
           warnings: customer.warnings,
-          isActive: customer.is_active, // Map `is_active` to `isActive`
-          // Add `blacklisted` field based on `warnings`
+          isActive: customer.is_active,
+          visits: customer.visits || 0,
+          comments: customer.comments || "",
+          createdAt: customer.created_at
+            ? new Date(customer.created_at)
+            : new Date(), // Add creation timestamp
           blacklisted: customer.warnings >= 3 ? "Yes" : "No",
+          // Add any other fields you need
         }));
       } catch (error) {
         console.error("Error fetching customers:", error);
+        toastr.error("Failed to load customers. Please try again.");
+
+        // Fallback to current date if API fails
+        this.customers.forEach((c) => {
+          if (!c.createdAt) c.createdAt = new Date();
+        });
+      } finally {
+        // Any cleanup or loading state removal
+        this.loading = false;
       }
     },
     async fetchBranches() {
@@ -640,6 +739,7 @@ export default {
             this.newCustomer.reservation === "Private Room"
               ? this.newCustomer.room
               : null,
+          comments: this.newCustomer.comments,
         };
 
         // Add customer to the database
@@ -744,6 +844,7 @@ export default {
         reservation: "Shared Area",
         sharedAreaType: "VIP",
         room: "",
+        comments: "",
       };
     },
 
@@ -777,6 +878,7 @@ export default {
           warnings: this.editCustomerData.warnings,
           is_active: this.editCustomerData.isActive === 1,
           room: "101", // Map `isActive` to `is_active`
+          comments: this.editCustomerData.comments,
         };
 
         // Send a PUT request to the API
@@ -974,13 +1076,25 @@ export default {
   color: black;
   padding: 8px;
   white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+td:hover {
+  white-space: normal;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+  background: white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
 .custom-table th {
   background-color: #ffd700;
   font-weight: bold;
   color: black;
   padding: 12px;
+  text-align: center;
 }
 .custom-table td .btn-edit,
 .custom-table td .btn-delete {
@@ -1093,7 +1207,13 @@ export default {
   border-radius: 4px;
   box-sizing: border-box;
 }
-
+.form-group textarea {
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  padding: 8px;
+}
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -1205,5 +1325,20 @@ export default {
 .checkbox-label {
   margin-left: 8px; /* Space between checkbox and label */
   line-height: 1;
+}
+#comment {
+  text-align: center;
+}
+input[readonly],
+textarea[readonly] {
+  background-color: #f5f5f5;
+  border-color: #e0e0e0;
+  color: #757575;
+  cursor: not-allowed;
+}
+.edit-warning {
+  color: rgb(110, 7, 7);
+  font-size: 13px;
+  padding-bottom: 15px;
 }
 </style>

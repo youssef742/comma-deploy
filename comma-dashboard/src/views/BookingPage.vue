@@ -27,6 +27,7 @@
         v-model="search.customerId"
         placeholder="Search by Customer ID"
         class="search-input"
+        @input="search.customerId = $event.target.value.toUpperCase()"
       />
     </div>
 
@@ -59,10 +60,30 @@
         <tr v-for="booking in paginatedBookings" :key="booking.id">
           <td>{{ booking.customer_id }}</td>
           <td>
-            {{ formatDateTime(booking.check_in_time) || "Not Checked In" }}
+            <template v-if="booking.check_in_time">
+              <span class="date-time-container">
+                <span class="date-part"
+                  >{{ formatDateTime(booking.check_in_time).datePart }},</span
+                >
+                <span class="time-part">{{
+                  formatDateTime(booking.check_in_time).timePart
+                }}</span>
+              </span>
+            </template>
+            <span v-else class="not-checked">Not Checked In</span>
           </td>
           <td>
-            {{ formatDateTime(booking.check_out_time) || "Not Checked Out" }}
+            <template v-if="booking.check_out_time">
+              <span class="date-time-container">
+                <span class="date-part"
+                  >{{ formatDateTime(booking.check_out_time).datePart }},</span
+                >
+                <span class="time-part">{{
+                  formatDateTime(booking.check_out_time).timePart
+                }}</span>
+              </span>
+            </template>
+            <span v-else class="not-checked-out">Not Checked Out</span>
           </td>
           <td>
             {{ booking.total_cost ? `${booking.total_cost} EGP` : "N/A" }}
@@ -72,13 +93,15 @@
           </td>
           <td>{{ booking.room || "N/A" }}</td>
           <td>
-            {{
-              booking.status === "checked_out"
-                ? "Checked Out"
-                : booking.status === "cancelled"
-                ? "Cancelled"
-                : "Active"
-            }}
+            <span :class="['status-tag', booking.status]">
+              {{
+                booking.status === "checked_out"
+                  ? "Checked Out"
+                  : booking.status === "cancelled"
+                  ? "Cancelled"
+                  : "Active"
+              }}
+            </span>
           </td>
           <td v-if="['ceo', 'branch manager'].includes($store.state.role)">
             {{ booking.cancellation_reason }}
@@ -125,7 +148,11 @@
               v-model="checkInData.customerId"
               id="customerId"
               required
-              @input="validateCustomer"
+              @input="formatCustomerId"
+              autocomplete="off"
+              autocapitalize="characters"
+              autocorrect="off"
+              spellcheck="false"
             />
             <p v-if="customerError" class="error-message">
               {{ customerError }}
@@ -310,6 +337,15 @@ export default {
     await this.loadBookings();
   },
   methods: {
+    formatCustomerId() {
+      // Remove all spaces and convert to uppercase
+      this.checkInData.customerId = this.checkInData.customerId
+        .replace(/\s+/g, "")
+        .toUpperCase();
+
+      // Trigger validation after formatting
+      this.validateCustomer();
+    },
     initiateCheckOut(booking) {
       // Set the customer ID in checkOutData
       this.checkOutData.customerId = booking.customer_id;
@@ -562,14 +598,20 @@ export default {
     formatDateTime(dateTime) {
       if (!dateTime) return null;
       const date = new Date(dateTime);
-      return date.toLocaleString("en-US", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
+
+      // Format date as "20 Apr"
+      const day = date.getDate().toString().padStart(2, "0");
+      const month = date.toLocaleString("default", { month: "short" });
+      const datePart = `${day} ${month}`;
+
+      // Format time as "10:56 AM"
+      const timePart = date.toLocaleString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
       });
+
+      return { datePart, timePart };
     },
   },
 };
@@ -635,6 +677,7 @@ export default {
 }
 
 .custom-table th {
+  text-align: center;
   background-color: #ffd700;
   font-weight: bold;
   color: black;
@@ -808,5 +851,55 @@ export default {
 
 .btn-checkout:hover {
   background-color: #45a049;
+}
+#customerId {
+  text-transform: uppercase;
+}
+.date-time-container {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.date-part {
+  font-size: 0.85em;
+  color: #666;
+}
+
+.time-part {
+  font-size: 1em;
+  font-weight: 500;
+}
+
+/* Status Styling */
+.not-checked {
+  color: #888;
+  font-style: italic;
+}
+
+.not-checked-out {
+  color: #ff4444;
+  font-weight: 500;
+}
+.status-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.status-tag.active {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-tag.checked_out {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-tag.cancelled {
+  background-color: #ffebee;
+  color: #c62828;
 }
 </style>
