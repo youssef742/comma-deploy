@@ -520,7 +520,6 @@ export default {
 .custom-table th,
 .custom-table td {
   border: 1px solid #cc9c0d;
-  text-align: left;
 }
 
 .custom-table td {
@@ -536,6 +535,7 @@ export default {
   font-weight: bold;
   color: black;
   padding: 12px;
+  text-align: center;
 }
 
 .custom-table tr:nth-child(even) {

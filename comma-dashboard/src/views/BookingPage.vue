@@ -19,15 +19,15 @@
     <!-- Search Fields -->
     <div class="search-fields">
       <input
-        v-model="search.name"
-        placeholder="Search by Name"
-        class="search-input"
-      />
-      <input
         v-model="search.customerId"
         placeholder="Search by Customer ID"
         class="search-input"
         @input="search.customerId = $event.target.value.toUpperCase()"
+      />
+      <input
+        v-model="search.name"
+        placeholder="Search by Name"
+        class="search-input"
       />
     </div>
 
@@ -62,11 +62,11 @@
           <td>
             <template v-if="booking.check_in_time">
               <span class="date-time-container">
-                <span class="date-part"
-                  >{{ formatDateTime(booking.check_in_time).datePart }},</span
+                <span class="time-part"
+                  >{{ formatDateTime(booking.check_in_time).timePart }},</span
                 >
-                <span class="time-part">{{
-                  formatDateTime(booking.check_in_time).timePart
+                <span class="date-part">{{
+                  formatDateTime(booking.check_in_time).datePart
                 }}</span>
               </span>
             </template>
@@ -75,11 +75,11 @@
           <td>
             <template v-if="booking.check_out_time">
               <span class="date-time-container">
-                <span class="date-part"
-                  >{{ formatDateTime(booking.check_out_time).datePart }},</span
+                <span class="time-part"
+                  >{{ formatDateTime(booking.check_out_time).timePart }},</span
                 >
-                <span class="time-part">{{
-                  formatDateTime(booking.check_out_time).timePart
+                <span class="date-part">{{
+                  formatDateTime(booking.check_out_time).datePart
                 }}</span>
               </span>
             </template>

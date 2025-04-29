@@ -523,7 +523,7 @@ table {
 th,
 td {
   border: 1px solid #cc9c0d;
-  text-align: left;
+  text-align: center;
 }
 td {
   text-align: center;

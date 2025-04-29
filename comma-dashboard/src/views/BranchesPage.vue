@@ -450,6 +450,7 @@ export default {
   font-weight: bold;
   color: black;
   padding: 12px;
+  text-align: center;
 }
 
 .custom-table tr:nth-child(even) {

@@ -423,7 +423,7 @@ export default {
 .custom-table th,
 .custom-table td {
   border: 1px solid #cc9c0d;
-  text-align: left;
+  text-align: center;
   padding: 8px;
 }
 
