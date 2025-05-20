@@ -9,14 +9,14 @@ router.get("/", async (req, res) => {
       SELECT bookings.*, customers.name AS customer_name 
       FROM bookings 
       LEFT JOIN customers ON bookings.customer_id = customers.id
-          ORDER BY
-     CASE
-       WHEN bookings.status = 'active' THEN 1
-       ELSE 2
-     END,
-     bookings.check_in_time DESC
-    `);
 
+    `);
+    // ORDER BY
+    // CASE
+    //   WHEN bookings.status = 'active' THEN 1
+    //   ELSE 2
+    // END,
+    // bookings.check_in_time DESC
     res.json(bookings);
   } catch (err) {
     console.error("Error fetching bookings:", err.message);
@@ -262,6 +262,7 @@ router.put("/check-out/:id", async (req, res) => {
        WHERE id = ?`,
       [totalTimeMinutes, totalCost, discount, id]
     );
+    // Add this right after deleting from active_customers (before the response)
     await db.query("UPDATE customers SET visits = visits + 1 WHERE id = ?", [
       booking[0].customer_id,
     ]);
@@ -359,7 +360,22 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
+// Get customer ID for active booking by room name
+router.get("/active-by-room/:room", async (req, res) => {
+  try {
+    const [booking] = await db.query(
+      `SELECT customer_id FROM bookings 
+       WHERE room = ? 
+       AND status = 'active' 
+       AND check_out_time IS NULL
+       LIMIT 1`,
+      [req.params.room]
+    );
+    res.json(booking[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Fetch active customers
 router.get("/active-customers", async (req, res) => {
   console.log("Fetching active customers"); // Debugging log

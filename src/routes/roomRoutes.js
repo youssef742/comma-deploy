@@ -43,7 +43,22 @@ router.post("/", async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 });
+router.get("/", async (req, res) => {
+  try {
+    let query = "SELECT * FROM rooms";
+    const params = [];
 
+    if (req.query.name) {
+      query += " WHERE name = ?";
+      params.push(req.query.name);
+    }
+
+    const [rows] = await db.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 // Update a room
 router.put("/:id", async (req, res) => {
   const { name, branch_name, type, capacity, price, price_type } = req.body;

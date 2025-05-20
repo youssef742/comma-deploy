@@ -9,6 +9,7 @@ import KitchenItemsPage from "@/views/KitchenItemsPage.vue";
 import EmployeesPage from "@/views/EmployeesPage.vue";
 import SharedArea from "@/views/SharedArea.vue";
 import SharedAreaSelection from "@/views/SharedAreaSelection.vue";
+import KitchenSales from "@/views/KitchenSales.vue";
 // import AppointmenetsPage from "@/views/AppointmenetsPage.vue";
 const routes = [
   { path: "/", redirect: "/login" },
@@ -20,6 +21,11 @@ const routes = [
   { path: "/bookings", component: BookingPage },
   { path: "/kitchen-items", component: KitchenItemsPage },
   { path: "/employees", component: EmployeesPage },
+  {
+    path: "/kitchen-sales",
+    name: "kitchen-sales",
+    component: KitchenSales,
+  },
   {
     path: "/shared-area-table/:type?",
     name: "SharedArea",

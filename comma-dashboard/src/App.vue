@@ -93,7 +93,16 @@
           <Icon icon="tabler:tools-kitchen-2" width="24px" height="24px" />
           Kitchen Items
         </li>
-
+        <!-- kitchen sales tab -->
+        <li
+          v-if="showTab('kitchen-sales')"
+          class="tab"
+          :class="{ active: activeTab === 'kitchen-sales' }"
+          @click="navigateTo('kitchen-sales')"
+        >
+          <Icon icon="mdi:food-turkey" width="24px" height="24px" />
+          Kitchen Sales
+        </li>
         <li
           v-if="showTab('Shared-Area')"
           class="tab"
@@ -186,6 +195,7 @@ export default {
           "appointments",
           "rooms",
           "kitchen-items",
+          "kitchen-sales",
           "employees",
           "Shared-Area",
         ].includes(tab);
@@ -198,6 +208,7 @@ export default {
           "appointments",
           "rooms",
           "Shared-Area",
+          "kitchen-sales",
         ].includes(tab);
       }
       return false; // Default to hiding tabs
